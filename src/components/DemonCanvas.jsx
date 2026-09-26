@@ -5,6 +5,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+const BASE = import.meta.env.BASE_URL || '/';
+const assetPath = (path) => `${BASE}${path.replace(/^\//, '')}`;
+
 export default function DemonCanvas({
   renderMode,
   isAutoRotate,
@@ -223,22 +226,22 @@ export default function DemonCanvas({
 
         // Load Demon textures (GLTF convention: flipY = false)
         const demonTexPromise = Promise.all([
-          loadTex('/asset_demon/texture_diffuse.png', true, false),
-          loadTex('/asset_demon/texture_normal.png', false, false),
-          loadTex('/asset_demon/texture_emissive.png', true, false),
-          loadTex('/asset_demon/texture_roughness.png', false, false),
-          loadTex('/asset_demon/texture_metallic.png', false, false),
-          loadTex('/asset_demon/shaded.png', true, false)
+          loadTex(assetPath('asset_demon/texture_diffuse.png'), true, false),
+          loadTex(assetPath('asset_demon/texture_normal.png'), false, false),
+          loadTex(assetPath('asset_demon/texture_emissive.png'), true, false),
+          loadTex(assetPath('asset_demon/texture_roughness.png'), false, false),
+          loadTex(assetPath('asset_demon/texture_metallic.png'), false, false),
+          loadTex(assetPath('asset_demon/shaded.png'), true, false)
         ]);
 
         // Load Orc textures (OBJ convention: flipY = true)
         const orcTexPromise = Promise.all([
-          loadTex('/asset_orc/texture_diffuse.png', true, true),
-          loadTex('/asset_orc/texture_normal.png', false, true),
-          loadTex('/asset_orc/texture_roughness.png', false, true),
-          loadTex('/asset_orc/texture_metallic.png', false, true),
-          loadTex('/asset_orc/texture_pbr.png', false, true),
-          loadTex('/asset_orc/shaded.png', true, true)
+          loadTex(assetPath('asset_orc/texture_diffuse.png'), true, true),
+          loadTex(assetPath('asset_orc/texture_normal.png'), false, true),
+          loadTex(assetPath('asset_orc/texture_roughness.png'), false, true),
+          loadTex(assetPath('asset_orc/texture_metallic.png'), false, true),
+          loadTex(assetPath('asset_orc/texture_pbr.png'), false, true),
+          loadTex(assetPath('asset_orc/shaded.png'), true, true)
         ]);
 
         const [
@@ -266,7 +269,7 @@ export default function DemonCanvas({
         const gltfLoader = new GLTFLoader();
         const loadDemonModel = new Promise((resolve, reject) => {
           gltfLoader.load(
-            '/demon_glb/demon_animated.glb',
+            assetPath('demon_glb/demon_animated.glb'),
             (gltf) => {
               demonScene = gltf.scene;
 
@@ -330,7 +333,7 @@ export default function DemonCanvas({
         const objLoader = new OBJLoader();
         const loadOrcModel = new Promise((resolve, reject) => {
           objLoader.load(
-            '/asset_orc/base.obj',
+            assetPath('asset_orc/base.obj'),
             (obj) => {
               let rawGeometry = null;
               obj.traverse((child) => {
