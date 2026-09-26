@@ -106,12 +106,12 @@ export default function DemonCanvas({
 
     const FOCUS_CONFIG = {
       both: {
-        target: new THREE.Vector3(0, 0.20, 0),
-        camera: new THREE.Vector3(0, 0.40, 3.9)
+        target: new THREE.Vector3(0, 0.25, 0),
+        camera: new THREE.Vector3(0, 0.45, 4.2)
       },
       demon: {
-        target: new THREE.Vector3(-1.25, 0.20, 0),
-        camera: new THREE.Vector3(-1.25, 0.40, 2.5)
+        target: new THREE.Vector3(-1.35, 0.35, 0),
+        camera: new THREE.Vector3(-1.35, 0.55, 2.8)
       },
       orc: {
         target: new THREE.Vector3(1.15, 0.20, 0),
@@ -307,9 +307,9 @@ export default function DemonCanvas({
                 actionDemon.play();
               }
 
-              // Demon scaled by 2.0 aligns the Demon's head & eye-line directly with the Orc's head
-              gltf.scene.scale.set(2.0, 2.0, 2.0);
-              gltf.scene.position.set(-1.25, groundY, 0);
+              // Demon scaled by 2.4 (+20% height) for an imposing, towering presence
+              gltf.scene.scale.set(2.4, 2.4, 2.4);
+              gltf.scene.position.set(-1.35, groundY, 0);
               gltf.scene.rotation.y = 0.12;
 
               modelsGroup.add(gltf.scene);
@@ -514,8 +514,8 @@ export default function DemonCanvas({
             mixerDemon.update(0);
           }
           if (demonScene) {
-            demonScene.scale.set(2.0, 2.0, 2.0);
-            demonScene.position.set(-1.25, groundY, 0);
+            demonScene.scale.set(2.4, 2.4, 2.4);
+            demonScene.position.set(-1.35, groundY, 0);
             demonScene.rotation.set(0, 0.12, 0);
             if (demonMaterial && stateRef.current.renderMode === 'pbr') {
               demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity;
