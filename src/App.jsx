@@ -19,22 +19,23 @@ export default function App() {
   const resetViewFnRef = useRef(null);
   const audioRef = useRef(null);
   const isLoadedRef = useRef(false);
+  const isMutedRef = useRef(false);
 
   const BASE = import.meta.env.BASE_URL || '/';
   const audioUrl = `${BASE}soundtrack.mp3`.replace('//', '/');
 
-  // Audio setup: preload and attempt autoplay as early as possible
+  // Audio setup: preload and attempt autoplay as early as possible on mount
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = 0.75;
-      audioRef.current.muted = false;
+      audioRef.current.muted = isMutedRef.current;
       // Proactively try to play early if permitted by browser MEI
       audioRef.current.play().catch(() => {});
     }
 
-    // Capture user interaction anywhere on the document to ensure audio starts
+    // Capture user interaction anywhere on the document to ensure audio starts if unmuted
     const unlockOnGesture = () => {
-      if (audioRef.current && !isMuted && audioRef.current.paused) {
+      if (audioRef.current && !isMutedRef.current && audioRef.current.paused) {
         audioRef.current.play().catch(() => {});
       }
     };
@@ -48,11 +49,11 @@ export default function App() {
       window.removeEventListener('touchstart', unlockOnGesture);
       window.removeEventListener('keydown', unlockOnGesture);
     };
-  }, [isMuted]);
+  }, []);
 
   const startSoundtrack = (onSuccess, onBlocked) => {
     isLoadedRef.current = true;
-    if (!audioRef.current || isMuted) {
+    if (!audioRef.current || isMutedRef.current) {
       if (onSuccess) onSuccess();
       return;
     }
@@ -86,7 +87,7 @@ export default function App() {
   };
 
   const handleUserEnter = () => {
-    if (audioRef.current && !isMuted) {
+    if (audioRef.current && !isMutedRef.current) {
       audioRef.current.muted = false;
       audioRef.current.volume = 0.75;
       audioRef.current.play().catch((err) => {
@@ -98,10 +99,17 @@ export default function App() {
   const handleToggleAudio = () => {
     if (!audioRef.current) return;
     if (isMuted) {
+      // Unmute: resume playback with volume
+      isMutedRef.current = false;
       setIsMuted(false);
       audioRef.current.muted = false;
-      audioRef.current.play().catch(() => {});
+      audioRef.current.volume = 0.75;
+      audioRef.current.play().catch((err) => {
+        console.warn('Error resuming audio on unmute:', err);
+      });
     } else {
+      // Mute: pause immediately and silence audio
+      isMutedRef.current = true;
       setIsMuted(true);
       audioRef.current.muted = true;
       audioRef.current.pause();

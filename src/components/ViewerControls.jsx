@@ -146,7 +146,12 @@ export default function ViewerControls({
           {/* Soundtrack Audio Toggle */}
           <button
             className={`glass-btn ${!isMuted ? 'active' : ''}`}
-            onClick={onToggleAudio}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleAudio();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             title={!isMuted ? 'Mute Soundtrack' : 'Unmute Soundtrack'}
             style={{
               borderColor: !isMuted ? 'rgba(255, 77, 38, 0.6)' : undefined,
