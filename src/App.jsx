@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import DemonCanvas from './components/DemonCanvas';
 import ViewerControls from './components/ViewerControls';
 
@@ -13,9 +13,68 @@ export default function App() {
   const [isAnimating, setIsAnimating] = useState(true);
   const [animSpeed, setAnimSpeed] = useState(1.0);
   const [fps, setFps] = useState(60);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   const canvasElementRef = useRef(null);
   const resetViewFnRef = useRef(null);
+  const audioRef = useRef(null);
+
+  const startSoundtrack = () => {
+    if (audioRef.current) return;
+    try {
+      const BASE = import.meta.env.BASE_URL || '/';
+      const audioUrl = `${BASE}soundtrack.mp3`.replace('//', '/');
+      const audio = new Audio(audioUrl);
+      audio.loop = true;
+      audio.volume = 0.65;
+      audioRef.current = audio;
+
+      const attemptPlay = () => {
+        audio.play().then(() => {
+          setIsAudioPlaying(true);
+        }).catch((err) => {
+          console.warn('Autoplay restricted by browser policy. Soundtrack will start on first user interaction:', err);
+          const unlock = () => {
+            audio.play().then(() => {
+              setIsAudioPlaying(true);
+            }).catch(() => {});
+            window.removeEventListener('pointerdown', unlock);
+            window.removeEventListener('keydown', unlock);
+          };
+          window.addEventListener('pointerdown', unlock, { once: true });
+          window.addEventListener('keydown', unlock, { once: true });
+        });
+      };
+
+      attemptPlay();
+    } catch (err) {
+      console.error('Failed to initialize soundtrack:', err);
+    }
+  };
+
+  const handleToggleAudio = () => {
+    if (!audioRef.current) {
+      startSoundtrack();
+      return;
+    }
+    if (audioRef.current.paused) {
+      audioRef.current.play().then(() => {
+        setIsAudioPlaying(true);
+      }).catch(() => {});
+    } else {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCaptureScreenshot = () => {
     if (!canvasElementRef.current) return;
@@ -56,6 +115,7 @@ export default function App() {
         onResetViewCallback={(fn) => {
           resetViewFnRef.current = fn;
         }}
+        onLoadComplete={startSoundtrack}
       />
 
       {/* Floating Viewer Controls */}
@@ -81,6 +141,8 @@ export default function App() {
         setAnimSpeed={setAnimSpeed}
         onResetView={handleResetView}
         onCaptureScreenshot={handleCaptureScreenshot}
+        isAudioPlaying={isAudioPlaying}
+        onToggleAudio={handleToggleAudio}
       />
     </div>
   );

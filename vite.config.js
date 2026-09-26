@@ -12,5 +12,5 @@ export default defineConfig({
       allow: ['..']
     }
   },
-  assetsInclude: ['**/*.glb', '**/*.obj', '**/*.png', '**/*.wasm']
+  assetsInclude: ['**/*.glb', '**/*.obj', '**/*.png', '**/*.wasm', '**/*.mp3']
 })

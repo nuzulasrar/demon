@@ -20,7 +20,8 @@ export default function DemonCanvas({
   animSpeed = 1.0,
   onFpsUpdate,
   canvasRefCallback,
-  onResetViewCallback
+  onResetViewCallback,
+  onLoadComplete
 }) {
   const mountRef = useRef(null);
   const stateRef = useRef({
@@ -390,6 +391,9 @@ export default function DemonCanvas({
 
         setLoadProgress(100);
         setLoading(false);
+        if (onLoadComplete) {
+          onLoadComplete();
+        }
       } catch (err) {
         console.error('Asset load error:', err);
         setErrorMsg(err.message);

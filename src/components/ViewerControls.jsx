@@ -10,7 +10,9 @@ import {
   Flame,
   ShieldAlert,
   Play,
-  Pause
+  Pause,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 export default function ViewerControls({
@@ -34,7 +36,9 @@ export default function ViewerControls({
   animSpeed,
   setAnimSpeed,
   onResetView,
-  onCaptureScreenshot
+  onCaptureScreenshot,
+  isAudioPlaying,
+  onToggleAudio
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -197,6 +201,22 @@ export default function ViewerControls({
           >
             <Camera size={15} />
             <span style={{ fontSize: '0.8rem' }}>Snapshot</span>
+          </button>
+
+          {/* Soundtrack Audio Toggle */}
+          <button
+            className={`glass-btn ${isAudioPlaying ? 'active' : ''}`}
+            onClick={onToggleAudio}
+            title={isAudioPlaying ? 'Mute Soundtrack' : 'Play Soundtrack'}
+            style={{
+              borderColor: isAudioPlaying ? 'rgba(255, 77, 38, 0.6)' : undefined,
+              background: isAudioPlaying ? 'rgba(255, 77, 38, 0.15)' : undefined
+            }}
+          >
+            {isAudioPlaying ? <Volume2 size={15} color="#ff4d26" /> : <VolumeX size={15} color="var(--text-muted)" />}
+            <span style={{ fontSize: '0.8rem', color: isAudioPlaying ? '#ff8c42' : 'var(--text-muted)' }}>
+              {isAudioPlaying ? 'Soundtrack' : 'Muted'}
+            </span>
           </button>
 
           {/* Fullscreen */}
