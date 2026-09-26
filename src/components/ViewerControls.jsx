@@ -111,7 +111,7 @@ export default function ViewerControls({
               </span>
             </h1>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, marginTop: '2px' }}>
-              asset_demon • asset_orc • ~2.1M Triangles • Living Idle Motion
+              demon_glb (Rigged Demon) • asset_orc • 4K PBR • Seamless Motion
             </p>
           </div>
         </div>

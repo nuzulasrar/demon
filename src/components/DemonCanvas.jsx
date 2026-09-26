@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -210,6 +209,10 @@ export default function DemonCanvas({
 
     let demonMesh = null;
     let demonMaterial = null;
+    let demonScene = null;
+    let mixerDemon = null;
+    let actionDemon = null;
+    const origDemonTextures = {};
     let orcMesh = null;
     let orcMaterial = null;
 
@@ -257,58 +260,63 @@ export default function DemonCanvas({
         orcTextures.pbr = oPbr;
         orcTextures.shaded = oShaded;
 
-        setLoadStage('Decoding Demon 3D mesh (Draco GLTF)...');
+        setLoadStage('Loading animated Demon (Rigged 11-joint skeleton & 24s Idle)...');
         setLoadProgress(45);
 
-        // Setup GLTF & Draco loaders for Demon
-        const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('/draco/');
         const gltfLoader = new GLTFLoader();
-        gltfLoader.setDRACOLoader(dracoLoader);
-
         const loadDemonModel = new Promise((resolve, reject) => {
           gltfLoader.load(
-            '/asset_demon/demon_draco.glb',
+            '/demon_glb/demon_animated.glb',
             (gltf) => {
-              let geometry = null;
+              demonScene = gltf.scene;
+
               gltf.scene.traverse((child) => {
-                if (child.isMesh && !geometry) {
-                  geometry = child.geometry;
-                  geometry.computeVertexNormals();
+                if ((child.isSkinnedMesh || child.isMesh) && !demonMesh) {
+                  demonMesh = child;
+                  child.castShadow = true;
+                  child.receiveShadow = true;
                 }
               });
 
-              if (!geometry) {
-                reject(new Error('Geometry not found in demon model'));
+              if (!demonMesh) {
+                reject(new Error('SkinnedMesh not found in demon_animated.glb'));
                 return;
               }
 
-              demonMaterial = new THREE.MeshStandardMaterial({
-                map: demonTextures.diffuse || null,
-                normalMap: demonTextures.normal || null,
-                normalScale: new THREE.Vector2(1.0, 1.0),
-                emissiveMap: demonTextures.emissive || null,
-                emissive: new THREE.Color(0xffffff),
-                emissiveIntensity: 1.0,
-                roughnessMap: demonTextures.roughness || null,
-                roughness: 1.0,
-                metalnessMap: demonTextures.metallic || null,
-                metalness: 1.0
-              });
+              demonMaterial = demonMesh.material;
+              if (demonMaterial) {
+                origDemonTextures.diffuse = demonMaterial.map || demonTextures.diffuse || null;
+                origDemonTextures.normal = demonMaterial.normalMap || demonTextures.normal || null;
+                origDemonTextures.roughness = demonMaterial.roughnessMap || demonTextures.roughness || null;
+                origDemonTextures.metallic = demonMaterial.metalnessMap || demonTextures.metallic || null;
+                origDemonTextures.emissive = demonMaterial.emissiveMap || demonTextures.emissive || null;
 
-              demonMesh = new THREE.Mesh(geometry, demonMaterial);
-              demonMesh.castShadow = true;
-              demonMesh.receiveShadow = true;
+                demonMaterial.emissive = new THREE.Color(0xffffff);
+                demonMaterial.emissiveIntensity = 1.0;
+              }
 
-              // Demon bounding box Y is [0.0, 1.07]. Scale 1.25 gives ~1.34m height
-              demonMesh.scale.set(1.25, 1.25, 1.25);
-              demonMesh.position.set(-1.15, groundY, 0);
-              demonMesh.rotation.y = 0.12;
+              // Initialize AnimationMixer for Demon's 24s idle cycle
+              mixerDemon = new THREE.AnimationMixer(gltf.scene);
+              const clip = gltf.animations.find((c) => c.name === 'Demon_Idle') || gltf.animations[0];
+              if (clip) {
+                actionDemon = mixerDemon.clipAction(clip);
+                actionDemon.setLoop(THREE.LoopRepeat, Infinity);
+                actionDemon.play();
+              }
 
-              modelsGroup.add(demonMesh);
+              gltf.scene.scale.set(1.25, 1.25, 1.25);
+              gltf.scene.position.set(-1.15, groundY, 0);
+              gltf.scene.rotation.y = 0.12;
+
+              modelsGroup.add(gltf.scene);
               resolve();
             },
-            undefined,
+            (xhr) => {
+              if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 30);
+                setLoadProgress(45 + percent);
+              }
+            },
             (err) => reject(err)
           );
         });
@@ -405,262 +413,271 @@ export default function DemonCanvas({
     // Animation loop
     let animId;
     const startTime = performance.now();
+    let lastFrameTime = performance.now();
     let frameCount = 0;
     let lastFpsTime = performance.now();
+    let prevRenderMode = null;
+    let prevWireframe = null;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
 
-      // FPS
-      frameCount++;
-      const now = performance.now();
-      if (now - lastFpsTime >= 500) {
-        const fpsVal = Math.round((frameCount * 1000) / (now - lastFpsTime));
-        if (onFpsUpdate) onFpsUpdate(fpsVal);
-        frameCount = 0;
-        lastFpsTime = now;
-      }
+      try {
+        const now = performance.now();
+        const delta = Math.min((now - lastFrameTime) * 0.001, 0.1);
+        lastFrameTime = now;
 
-      // Check focus changes
-      if (stateRef.current.focusTarget !== prevFocusTarget) {
-        prevFocusTarget = stateRef.current.focusTarget;
-        const config = FOCUS_CONFIG[prevFocusTarget] || FOCUS_CONFIG.both;
-        targetCamPos.copy(config.camera);
-        targetLookAt.copy(config.target);
-        isFocusAnimating = true;
-      }
-
-      // Smooth camera interpolation when switching focus
-      if (isFocusAnimating) {
-        camera.position.lerp(targetCamPos, 0.08);
-        controls.target.lerp(targetLookAt, 0.08);
-        if (
-          camera.position.distanceTo(targetCamPos) < 0.01 &&
-          controls.target.distanceTo(targetLookAt) < 0.01
-        ) {
-          camera.position.copy(targetCamPos);
-          controls.target.copy(targetLookAt);
-          isFocusAnimating = false;
+        // FPS
+        frameCount++;
+        if (now - lastFpsTime >= 500) {
+          const fpsVal = Math.round((frameCount * 1000) / (now - lastFpsTime));
+          if (onFpsUpdate) onFpsUpdate(fpsVal);
+          frameCount = 0;
+          lastFpsTime = now;
         }
-      }
 
-      controls.update();
+        // Check focus changes
+        if (stateRef.current.focusTarget !== prevFocusTarget) {
+          prevFocusTarget = stateRef.current.focusTarget;
+          const config = FOCUS_CONFIG[prevFocusTarget] || FOCUS_CONFIG.both;
+          targetCamPos.copy(config.camera);
+          targetLookAt.copy(config.target);
+          isFocusAnimating = true;
+        }
 
-      // Auto rotation of both models around center
-      if (modelsGroup && stateRef.current.isAutoRotate) {
-        modelsGroup.rotation.y += 0.006;
-      }
+        // Smooth camera interpolation when switching focus
+        if (isFocusAnimating) {
+          camera.position.lerp(targetCamPos, 0.08);
+          controls.target.lerp(targetLookAt, 0.08);
+          if (
+            camera.position.distanceTo(targetCamPos) < 0.01 &&
+            controls.target.distanceTo(targetLookAt) < 0.01
+          ) {
+            camera.position.copy(targetCamPos);
+            controls.target.copy(targetLookAt);
+            isFocusAnimating = false;
+          }
+        }
 
-      // Procedural Idle Animation (Breathing, Sway, Fire & Ember Physics)
-      const isAnim = stateRef.current.isAnimating;
-      const speed = stateRef.current.animSpeed;
-      const t = ((now - startTime) * 0.001) * speed;
+        controls.update();
 
-      if (isAnim) {
-        // --- 1. Demon Idle Animation ---
-        if (demonMesh) {
-          const dBreath = Math.sin(t * 1.6);
-          const dBreathCos = Math.cos(t * 1.6);
-          const dSway = Math.sin(t * 0.8);
+        // Auto rotation of both models around center
+        if (modelsGroup && stateRef.current.isAutoRotate) {
+          modelsGroup.rotation.y += 0.006;
+        }
 
-          // Rhythmic chest/wing expansion
-          const dScaleXZ = 1.25 * (1 + 0.014 * dBreath);
-          const dScaleY = 1.25 * (1 + 0.009 * dBreath);
-          demonMesh.scale.set(dScaleXZ, dScaleY, dScaleXZ);
+        // Procedural Idle Animation (Breathing, Sway, Fire & Ember Physics)
+        const isAnim = stateRef.current.isAnimating;
+        const speed = stateRef.current.animSpeed;
+        const t = ((now - startTime) * 0.001) * speed;
 
-          // Vertical breathing lift and subtle menacing sway
-          demonMesh.position.y = groundY + 0.007 * (dBreath * 0.5 + 0.5);
-          demonMesh.rotation.y = 0.12 + 0.018 * dSway;
-          demonMesh.rotation.z = 0.012 * dSway;
-          demonMesh.rotation.x = 0.008 * dBreathCos;
+        if (isAnim) {
+          // --- 1. Demon Skeletal Animation ---
+          if (mixerDemon) {
+            mixerDemon.update(delta * speed);
+          }
 
           // Magma emissive pulse in sync with respiration
           if (demonMaterial && stateRef.current.renderMode === 'pbr') {
             const eBase = stateRef.current.emissiveIntensity;
-            const pulse = 0.75 + 0.45 * (0.5 + 0.5 * dBreath);
+            const pulse = 0.8 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.6));
             demonMaterial.emissiveIntensity = eBase * pulse;
           }
-        }
 
-        // --- 2. Orc Idle Animation ---
-        if (orcMesh) {
-          // Independent breathing cycle and warrior weight shifting
-          const oBreath = Math.sin(t * 2.0 + 1.4);
-          const oBreathCos = Math.cos(t * 2.0 + 1.4);
-          const oSway = Math.sin(t * 1.0 + 0.7);
+          // --- 2. Orc Idle Animation ---
+          if (orcMesh) {
+            // Independent breathing cycle and warrior weight shifting
+            const oBreath = Math.sin(t * 2.0 + 1.4);
+            const oBreathCos = Math.cos(t * 2.0 + 1.4);
+            const oSway = Math.sin(t * 1.0 + 0.7);
 
-          // Deep chest expansion
-          const oScaleXZ = 0.95 * (1 + 0.015 * oBreath);
-          const oScaleY = 0.95 * (1 + 0.008 * oBreath);
-          orcMesh.scale.set(oScaleXZ, oScaleY, oScaleXZ);
+            // Deep chest expansion
+            const oScaleXZ = 0.95 * (1 + 0.015 * oBreath);
+            const oScaleY = 0.95 * (1 + 0.008 * oBreath);
+            orcMesh.scale.set(oScaleXZ, oScaleY, oScaleXZ);
 
-          // Grounded weight shift and forward battle posture
-          orcMesh.position.y = groundY + 0.006 * (oBreath * 0.5 + 0.5);
-          orcMesh.rotation.y = -0.12 + 0.02 * oSway;
-          orcMesh.rotation.z = -0.014 * oSway;
-          orcMesh.rotation.x = 0.01 * oBreathCos;
-        }
-
-
-      } else {
-        // Reset to rest pose if animation paused
-        if (demonMesh) {
-          demonMesh.scale.set(1.25, 1.25, 1.25);
-          demonMesh.position.set(-1.15, groundY, 0);
-          demonMesh.rotation.set(0, 0.12, 0);
-          if (demonMaterial && stateRef.current.renderMode === 'pbr') {
-            demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity;
+            // Grounded weight shift and forward battle posture
+            orcMesh.position.y = groundY + 0.006 * (oBreath * 0.5 + 0.5);
+            orcMesh.rotation.y = -0.12 + 0.02 * oSway;
+            orcMesh.rotation.z = -0.014 * oSway;
+            orcMesh.rotation.x = 0.01 * oBreathCos;
           }
-        }
-        if (orcMesh) {
-          orcMesh.scale.set(0.95, 0.95, 0.95);
-          orcMesh.position.set(1.05, groundY, 0);
-          orcMesh.rotation.set(0, -0.12, 0);
-        }
-      }
 
-      // Dynamic light intensity (with subtle organic torch flicker)
-      const lightMult = stateRef.current.lightIntensity;
-      const flicker = isAnim
-        ? 1.0 + 0.03 * Math.sin(t * 7.4) + 0.015 * Math.cos(t * 11.2)
-        : 1.0;
 
-      ambientLight.intensity = 0.65 * lightMult;
-      keyLight.intensity = 2.4 * lightMult * flicker;
-      fillLight.intensity = 1.3 * lightMult;
-      rimLight.intensity = 1.8 * lightMult * flicker;
-      coolRimLight.intensity = 1.2 * lightMult;
-
-      // Handle flipY dynamically: Demon is false by default, Orc is true by default
-      const isFlipped = stateRef.current.flipTextureY;
-      const demonTargetFlip = isFlipped ? true : false;
-      const orcTargetFlip = isFlipped ? false : true;
-
-      Object.values(demonTextures).forEach((tex) => {
-        if (tex && tex.flipY !== demonTargetFlip) {
-          tex.flipY = demonTargetFlip;
-          tex.needsUpdate = true;
-        }
-      });
-
-      Object.values(orcTextures).forEach((tex) => {
-        if (tex && tex.flipY !== orcTargetFlip) {
-          tex.flipY = orcTargetFlip;
-          tex.needsUpdate = true;
-        }
-      });
-
-      // Update materials according to renderMode
-      const mode = stateRef.current.renderMode;
-      const eIntensity = stateRef.current.emissiveIntensity;
-      const wire = stateRef.current.showWireframe;
-
-      const updateMaterial = (material, textures, isDemon) => {
-        if (!material) return;
-        material.wireframe = wire;
-
-        if (mode === 'pbr') {
-          material.map = textures.diffuse || null;
-          material.normalMap = textures.normal || null;
-          if (isDemon) {
-            material.emissiveMap = textures.emissive || null;
-            material.emissive.set(0xffffff);
-            if (!isAnim) material.emissiveIntensity = eIntensity;
-            material.roughnessMap = textures.roughness || null;
-            material.metalnessMap = textures.metallic || null;
-            material.aoMap = null;
-          } else {
-            material.emissiveMap = null;
-            material.emissive.set(0x000000);
-            material.emissiveIntensity = 0.0;
-            // For Orc: use texture_pbr (packed AO, Roughness, Metalness)
-            if (textures.pbr) {
-              material.roughnessMap = textures.pbr;
-              material.metalnessMap = textures.pbr;
-              material.aoMap = textures.pbr;
-              material.aoMapIntensity = 1.0;
-            } else {
-              material.roughnessMap = textures.roughness || null;
-              material.metalnessMap = textures.metallic || null;
-              material.aoMap = null;
+        } else {
+          // Paused pose
+          if (mixerDemon) {
+            mixerDemon.update(0);
+          }
+          if (demonScene) {
+            demonScene.scale.set(1.25, 1.25, 1.25);
+            demonScene.position.set(-1.15, groundY, 0);
+            demonScene.rotation.set(0, 0.12, 0);
+            if (demonMaterial && stateRef.current.renderMode === 'pbr') {
+              demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity;
             }
           }
-          material.roughness = 1.0;
-          material.metalness = 1.0;
-          material.color.set(0xffffff);
-        } else if (mode === 'diffuse') {
-          material.map = textures.diffuse || null;
-          material.normalMap = null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.roughness = 0.85;
-          material.metalness = 0.05;
-          material.color.set(0xffffff);
-        } else if (mode === 'shaded') {
-          material.map = textures.shaded || textures.diffuse || null;
-          material.normalMap = textures.normal || null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.roughness = 0.5;
-          material.metalness = 0.1;
-          material.color.set(0xffffff);
-        } else if (mode === 'normal') {
-          material.map = textures.normal || null;
-          material.normalMap = null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.roughness = 0.5;
-          material.metalness = 0.0;
-          material.color.set(0xffffff);
-        } else if (mode === 'roughness') {
-          material.map = textures.roughness || null;
-          material.normalMap = null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.color.set(0xffffff);
-        } else if (mode === 'metallic') {
-          material.map = textures.metallic || null;
-          material.normalMap = null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.color.set(0xffffff);
-        } else if (mode === 'clay') {
-          material.map = null;
-          material.normalMap = textures.normal || null;
-          material.emissiveMap = null;
-          material.emissive.set(0x000000);
-          material.roughnessMap = null;
-          material.metalnessMap = null;
-          material.aoMap = null;
-          material.roughness = 0.85;
-          material.metalness = 0.05;
-          material.color.set(0x52545c);
+          if (orcMesh) {
+            orcMesh.scale.set(0.95, 0.95, 0.95);
+            orcMesh.position.set(1.05, groundY, 0);
+            orcMesh.rotation.set(0, -0.12, 0);
+          }
         }
-      };
 
-      if (demonMesh && demonMaterial) {
-        updateMaterial(demonMaterial, demonTextures, true);
-      }
-      if (orcMesh && orcMaterial) {
-        updateMaterial(orcMaterial, orcTextures, false);
-      }
+        // Dynamic light intensity (with subtle organic torch flicker)
+        const lightMult = stateRef.current.lightIntensity;
+        const flicker = isAnim
+          ? 1.0 + 0.03 * Math.sin(t * 7.4) + 0.015 * Math.cos(t * 11.2)
+          : 1.0;
 
-      renderer.render(scene, camera);
+        ambientLight.intensity = 0.65 * lightMult;
+        keyLight.intensity = 2.4 * lightMult * flicker;
+        fillLight.intensity = 1.3 * lightMult;
+        rimLight.intensity = 1.8 * lightMult * flicker;
+        coolRimLight.intensity = 1.2 * lightMult;
+
+        // Handle flipY dynamically: Demon is false by default, Orc is true by default
+        const isFlipped = stateRef.current.flipTextureY;
+        const demonTargetFlip = isFlipped ? true : false;
+        const orcTargetFlip = isFlipped ? false : true;
+
+        Object.values(demonTextures).forEach((tex) => {
+          if (tex && tex.flipY !== demonTargetFlip) {
+            tex.flipY = demonTargetFlip;
+            tex.needsUpdate = true;
+          }
+        });
+
+        Object.values(orcTextures).forEach((tex) => {
+          if (tex && tex.flipY !== orcTargetFlip) {
+            tex.flipY = orcTargetFlip;
+            tex.needsUpdate = true;
+          }
+        });
+
+        // Update materials according to renderMode
+        const mode = stateRef.current.renderMode;
+        const eIntensity = stateRef.current.emissiveIntensity;
+        const wire = stateRef.current.showWireframe;
+
+        const modeOrWireChanged = mode !== prevRenderMode || wire !== prevWireframe;
+        if (modeOrWireChanged) {
+          prevRenderMode = mode;
+          prevWireframe = wire;
+          if (demonMaterial) demonMaterial.needsUpdate = true;
+          if (orcMaterial) orcMaterial.needsUpdate = true;
+        }
+
+        const updateMaterial = (material, textures, isDemon) => {
+          if (!material) return;
+          material.wireframe = wire;
+
+          if (mode === 'pbr') {
+            material.map = isDemon ? (origDemonTextures.diffuse || textures.diffuse) : (textures.diffuse || null);
+            material.normalMap = isDemon ? (origDemonTextures.normal || textures.normal) : (textures.normal || null);
+            material.normalScale.set(1, 1);
+            if (isDemon) {
+              material.emissiveMap = origDemonTextures.emissive || textures.emissive || null;
+              material.emissive.set(0xffffff);
+              if (!isAnim) material.emissiveIntensity = eIntensity;
+              material.roughnessMap = origDemonTextures.roughness || textures.roughness || null;
+              material.metalnessMap = origDemonTextures.metallic || textures.metallic || null;
+              material.aoMap = null;
+            } else {
+              material.emissiveMap = null;
+              material.emissive.set(0x000000);
+              material.emissiveIntensity = 0.0;
+              // For Orc: use texture_pbr (packed AO, Roughness, Metalness)
+              if (textures.pbr) {
+                material.roughnessMap = textures.pbr;
+                material.metalnessMap = textures.pbr;
+                material.aoMap = textures.pbr;
+                material.aoMapIntensity = 1.0;
+              } else {
+                material.roughnessMap = textures.roughness || null;
+                material.metalnessMap = textures.metallic || null;
+                material.aoMap = null;
+              }
+            }
+            material.roughness = 1.0;
+            material.metalness = 1.0;
+            material.color.set(0xffffff);
+          } else if (mode === 'diffuse') {
+            material.map = isDemon ? (origDemonTextures.diffuse || textures.diffuse) : (textures.diffuse || null);
+            material.normalMap = null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.roughness = 0.85;
+            material.metalness = 0.05;
+            material.color.set(0xffffff);
+          } else if (mode === 'shaded') {
+            material.map = textures.shaded || (isDemon ? origDemonTextures.diffuse : textures.diffuse) || null;
+            material.normalMap = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.roughness = 0.5;
+            material.metalness = 0.1;
+            material.color.set(0xffffff);
+          } else if (mode === 'normal') {
+            material.map = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.normalMap = null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.roughness = 0.5;
+            material.metalness = 0.0;
+            material.color.set(0xffffff);
+          } else if (mode === 'roughness') {
+            material.map = (isDemon ? origDemonTextures.roughness : textures.roughness) || null;
+            material.normalMap = null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.color.set(0xffffff);
+          } else if (mode === 'metallic') {
+            material.map = (isDemon ? origDemonTextures.metallic : textures.metallic) || null;
+            material.normalMap = null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.color.set(0xffffff);
+          } else if (mode === 'clay') {
+            material.map = null;
+            material.normalMap = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.emissiveMap = null;
+            material.emissive.set(0x000000);
+            material.roughnessMap = null;
+            material.metalnessMap = null;
+            material.aoMap = null;
+            material.roughness = 0.85;
+            material.metalness = 0.05;
+            material.color.set(0x52545c);
+          }
+        };
+
+        if (demonMesh && demonMaterial) {
+          updateMaterial(demonMaterial, demonTextures, true);
+        }
+        if (orcMesh && orcMaterial) {
+          updateMaterial(orcMaterial, orcTextures, false);
+        }
+
+        renderer.render(scene, camera);
+      } catch (err) {
+        console.error('Render loop error:', err);
+      }
     };
 
     animate();
@@ -668,6 +685,9 @@ export default function DemonCanvas({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      if (mixerDemon) {
+        mixerDemon.stopAllAction();
+      }
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }
