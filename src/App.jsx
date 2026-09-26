@@ -13,68 +13,86 @@ export default function App() {
   const [isAnimating, setIsAnimating] = useState(true);
   const [animSpeed, setAnimSpeed] = useState(1.0);
   const [fps, setFps] = useState(60);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const canvasElementRef = useRef(null);
   const resetViewFnRef = useRef(null);
   const audioRef = useRef(null);
+  const isLoadedRef = useRef(false);
 
-  const startSoundtrack = () => {
-    if (audioRef.current) return;
+  // Preload soundtrack immediately so it's buffered and ready to play without delay
+  useEffect(() => {
     try {
       const BASE = import.meta.env.BASE_URL || '/';
       const audioUrl = `${BASE}soundtrack.mp3`.replace('//', '/');
       const audio = new Audio(audioUrl);
       audio.loop = true;
-      audio.volume = 0.65;
+      audio.volume = 0.75;
+      audio.muted = false;
+      audio.preload = 'auto';
       audioRef.current = audio;
-
-      const attemptPlay = () => {
-        audio.play().then(() => {
-          setIsAudioPlaying(true);
-        }).catch((err) => {
-          console.warn('Autoplay restricted by browser policy. Soundtrack will start on first user interaction:', err);
-          const unlock = () => {
-            audio.play().then(() => {
-              setIsAudioPlaying(true);
-            }).catch(() => {});
-            window.removeEventListener('pointerdown', unlock);
-            window.removeEventListener('keydown', unlock);
-          };
-          window.addEventListener('pointerdown', unlock, { once: true });
-          window.addEventListener('keydown', unlock, { once: true });
-        });
-      };
-
-      attemptPlay();
     } catch (err) {
-      console.error('Failed to initialize soundtrack:', err);
+      console.warn('Audio preloading error:', err);
     }
-  };
 
-  const handleToggleAudio = () => {
-    if (!audioRef.current) {
-      startSoundtrack();
-      return;
-    }
-    if (audioRef.current.paused) {
-      audioRef.current.play().then(() => {
-        setIsAudioPlaying(true);
-      }).catch(() => {});
-    } else {
-      audioRef.current.pause();
-      setIsAudioPlaying(false);
-    }
-  };
+    // Capture early user gesture to ensure audio plays immediately upon load completion
+    const unlockOnGesture = () => {
+      if (audioRef.current && isLoadedRef.current && !audioRef.current.muted && audioRef.current.paused) {
+        audioRef.current.play().catch(() => {});
+      }
+    };
 
-  useEffect(() => {
+    window.addEventListener('pointerdown', unlockOnGesture);
+    window.addEventListener('touchstart', unlockOnGesture);
+    window.addEventListener('keydown', unlockOnGesture);
+
     return () => {
+      window.removeEventListener('pointerdown', unlockOnGesture);
+      window.removeEventListener('touchstart', unlockOnGesture);
+      window.removeEventListener('keydown', unlockOnGesture);
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
       }
     };
   }, []);
+
+  const startSoundtrack = () => {
+    isLoadedRef.current = true;
+    if (audioRef.current && !isMuted) {
+      audioRef.current.muted = false;
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Autoplay restricted by browser; starting on first gesture:', err);
+          const playOnGesture = () => {
+            if (audioRef.current && !audioRef.current.muted) {
+              audioRef.current.play().catch(() => {});
+            }
+            window.removeEventListener('pointerdown', playOnGesture);
+            window.removeEventListener('touchstart', playOnGesture);
+            window.removeEventListener('keydown', playOnGesture);
+          };
+          window.addEventListener('pointerdown', playOnGesture, { once: true });
+          window.addEventListener('touchstart', playOnGesture, { once: true });
+          window.addEventListener('keydown', playOnGesture, { once: true });
+        });
+      }
+    }
+  };
+
+  const handleToggleAudio = () => {
+    if (!audioRef.current) return;
+    if (isMuted) {
+      setIsMuted(false);
+      audioRef.current.muted = false;
+      audioRef.current.play().catch(() => {});
+    } else {
+      setIsMuted(true);
+      audioRef.current.muted = true;
+      audioRef.current.pause();
+    }
+  };
 
   const handleCaptureScreenshot = () => {
     if (!canvasElementRef.current) return;
@@ -141,7 +159,7 @@ export default function App() {
         setAnimSpeed={setAnimSpeed}
         onResetView={handleResetView}
         onCaptureScreenshot={handleCaptureScreenshot}
-        isAudioPlaying={isAudioPlaying}
+        isMuted={isMuted}
         onToggleAudio={handleToggleAudio}
       />
     </div>

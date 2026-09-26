@@ -37,7 +37,7 @@ export default function ViewerControls({
   setAnimSpeed,
   onResetView,
   onCaptureScreenshot,
-  isAudioPlaying,
+  isMuted,
   onToggleAudio
 }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -205,17 +205,17 @@ export default function ViewerControls({
 
           {/* Soundtrack Audio Toggle */}
           <button
-            className={`glass-btn ${isAudioPlaying ? 'active' : ''}`}
+            className={`glass-btn ${!isMuted ? 'active' : ''}`}
             onClick={onToggleAudio}
-            title={isAudioPlaying ? 'Mute Soundtrack' : 'Play Soundtrack'}
+            title={!isMuted ? 'Mute Soundtrack' : 'Unmute Soundtrack'}
             style={{
-              borderColor: isAudioPlaying ? 'rgba(255, 77, 38, 0.6)' : undefined,
-              background: isAudioPlaying ? 'rgba(255, 77, 38, 0.15)' : undefined
+              borderColor: !isMuted ? 'rgba(255, 77, 38, 0.6)' : undefined,
+              background: !isMuted ? 'rgba(255, 77, 38, 0.15)' : undefined
             }}
           >
-            {isAudioPlaying ? <Volume2 size={15} color="#ff4d26" /> : <VolumeX size={15} color="var(--text-muted)" />}
-            <span style={{ fontSize: '0.8rem', color: isAudioPlaying ? '#ff8c42' : 'var(--text-muted)' }}>
-              {isAudioPlaying ? 'Soundtrack' : 'Muted'}
+            {!isMuted ? <Volume2 size={15} color="#ff4d26" /> : <VolumeX size={15} color="var(--text-muted)" />}
+            <span style={{ fontSize: '0.8rem', color: !isMuted ? '#ff8c42' : 'var(--text-muted)' }}>
+              {!isMuted ? 'Soundtrack' : 'Muted'}
             </span>
           </button>
 
