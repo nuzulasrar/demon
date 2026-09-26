@@ -67,70 +67,29 @@ export default function ViewerControls({
     { id: 'orc', label: 'Orc', icon: ShieldAlert }
   ];
 
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   return (
     <>
       {/* Top Header Bar */}
-      <header
-        style={{
-          position: 'absolute',
-          top: '16px',
-          left: '20px',
-          right: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 50,
-          pointerEvents: 'none'
-        }}
-      >
+      <header className="viewer-header">
         {/* Title & Stats */}
-        <div
-          className="glass-panel"
-          style={{
-            padding: '10px 18px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            pointerEvents: 'auto'
-          }}
-        >
+        <div className="viewer-title-box glass-panel">
           <div>
-            <h1
-              style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                letterSpacing: '0.04em',
-                color: '#fff',
-                margin: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
+            <h1 className="viewer-title">
               <span style={{ color: '#ff4d26' }}>Demon</span>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>&</span>
               <span style={{ color: '#00e5ff' }}>Orc</span>
-              <span style={{ fontSize: '0.78rem', color: '#ffb703', fontWeight: 500, marginLeft: '4px' }}>
-                3D Showcase
-              </span>
+              <span className="viewer-title-sub">3D Showcase</span>
             </h1>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, marginTop: '2px' }}>
+            <p className="viewer-subtitle">
               demon_glb (Rigged Demon) • asset_orc • 4K PBR • Seamless Motion
             </p>
           </div>
         </div>
 
         {/* Character Focus Selector */}
-        <div
-          className="glass-panel"
-          style={{
-            padding: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            pointerEvents: 'auto'
-          }}
-        >
+        <div className="viewer-focus-box glass-panel">
           {FOCUS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             const isSelected = focusTarget === opt.id;
@@ -139,12 +98,9 @@ export default function ViewerControls({
                 key={opt.id}
                 className="glass-btn"
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '8px',
                   background: isSelected ? 'rgba(255, 77, 38, 0.25)' : 'transparent',
                   borderColor: isSelected ? '#ff4d26' : 'transparent',
                   color: isSelected ? '#fff' : 'var(--text-muted)',
-                  fontSize: '0.78rem',
                   fontWeight: isSelected ? 600 : 400
                 }}
                 onClick={() => setFocusTarget(opt.id)}
@@ -157,25 +113,9 @@ export default function ViewerControls({
         </div>
 
         {/* Right Tools */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            pointerEvents: 'auto'
-          }}
-        >
+        <div className="viewer-tools-box">
           {/* FPS Badge */}
-          <div
-            className="glass-panel"
-            style={{
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.76rem'
-            }}
-          >
+          <div className="viewer-fps-badge glass-panel">
             <Activity size={13} color="#00e5ff" />
             <span style={{ color: 'var(--text-muted)' }}>FPS:</span>
             <span style={{ color: '#00f5d4', fontWeight: 600, fontFamily: 'monospace' }}>
@@ -190,7 +130,7 @@ export default function ViewerControls({
             title="Reset Camera View"
           >
             <RotateCcw size={15} />
-            <span style={{ fontSize: '0.8rem' }}>Reset</span>
+            <span className="btn-label" style={{ fontSize: '0.8rem' }}>Reset</span>
           </button>
 
           {/* Screenshot */}
@@ -200,7 +140,7 @@ export default function ViewerControls({
             title="Capture Screenshot"
           >
             <Camera size={15} />
-            <span style={{ fontSize: '0.8rem' }}>Snapshot</span>
+            <span className="btn-label" style={{ fontSize: '0.8rem' }}>Snapshot</span>
           </button>
 
           {/* Soundtrack Audio Toggle */}
@@ -214,7 +154,7 @@ export default function ViewerControls({
             }}
           >
             {!isMuted ? <Volume2 size={15} color="#ff4d26" /> : <VolumeX size={15} color="var(--text-muted)" />}
-            <span style={{ fontSize: '0.8rem', color: !isMuted ? '#ff8c42' : 'var(--text-muted)' }}>
+            <span className="btn-label" style={{ fontSize: '0.8rem', color: !isMuted ? '#ff8c42' : 'var(--text-muted)' }}>
               {!isMuted ? 'Soundtrack' : 'Muted'}
             </span>
           </button>
@@ -231,33 +171,10 @@ export default function ViewerControls({
       </header>
 
       {/* Bottom Floating Control Bar */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '24px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 50,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '10px',
-          pointerEvents: 'auto'
-        }}
-      >
+      <div className="viewer-bottom-container">
         {/* Settings Drawer (Sliders & Modifiers) */}
         {showSettings && (
-          <div
-            className="glass-panel"
-            style={{
-              padding: '16px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px',
-              minWidth: '340px',
-              background: 'rgba(15, 14, 18, 0.95)'
-            }}
-          >
+          <div className="glass-panel viewer-settings-drawer">
             {/* Animation Speed Slider */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '6px' }}>
@@ -315,7 +232,6 @@ export default function ViewerControls({
               />
             </div>
 
-
             {/* Flip Texture Y */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Invert Texture Y</span>
@@ -331,101 +247,68 @@ export default function ViewerControls({
         )}
 
         {/* Main Buttons Bar */}
-        <div
-          className="glass-panel"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px',
-            background: 'rgba(15, 14, 18, 0.9)'
-          }}
-        >
+        <div className="glass-panel viewer-controls-bar">
           {/* Render Mode Switcher */}
-          {RENDER_MODES.map((mode) => {
-            const isSelected = renderMode === mode.id;
-            return (
-              <button
-                key={mode.id}
-                className="glass-btn"
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: '8px',
-                  background: isSelected ? 'rgba(255, 77, 38, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                  borderColor: isSelected ? '#ff4d26' : 'rgba(255, 255, 255, 0.08)',
-                  color: isSelected ? '#fff' : 'var(--text-muted)',
-                  fontSize: '0.8rem',
-                  fontWeight: isSelected ? 600 : 400
-                }}
-                onClick={() => setRenderMode(mode.id)}
-              >
-                {mode.label}
-              </button>
-            );
-          })}
+          <div className="viewer-render-modes">
+            {RENDER_MODES.map((mode) => {
+              const isSelected = renderMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  className={`glass-btn mode-btn ${isSelected ? 'active' : ''}`}
+                  onClick={() => setRenderMode(mode.id)}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
 
-          <div style={{ width: '1px', height: '22px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+          <div className="viewer-divider" />
 
-          {/* Idle Animation Toggle */}
-          <button
-            className={`glass-btn ${isAnimating ? 'active' : ''}`}
-            style={{
-              padding: '7px 12px',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-            onClick={() => setIsAnimating(!isAnimating)}
-            title="Toggle Living Idle Breathing & Posture"
-          >
-            {isAnimating ? <Pause size={14} color="#00f5d4" /> : <Play size={14} />}
-            <span>{isAnimating ? 'Alive' : 'Paused'}</span>
-          </button>
+          {/* Action Toggles */}
+          <div className="viewer-action-toggles">
+            {/* Idle Animation Toggle */}
+            <button
+              className={`glass-btn ${isAnimating ? 'active' : ''}`}
+              onClick={() => setIsAnimating(!isAnimating)}
+              title="Toggle Living Idle Breathing & Posture"
+            >
+              {isAnimating ? <Pause size={14} color="#00f5d4" /> : <Play size={14} />}
+              <span>{isAnimating ? 'Alive' : 'Paused'}</span>
+            </button>
 
-          {/* Wireframe Toggle */}
-          <button
-            className={`glass-btn ${showWireframe ? 'active' : ''}`}
-            style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '0.8rem' }}
-            onClick={() => setShowWireframe(!showWireframe)}
-          >
-            Wireframe
-          </button>
+            {/* Wireframe Toggle */}
+            <button
+              className={`glass-btn ${showWireframe ? 'active' : ''}`}
+              onClick={() => setShowWireframe(!showWireframe)}
+            >
+              Wireframe
+            </button>
 
-          {/* Auto Rotate Toggle */}
-          <button
-            className={`glass-btn ${isAutoRotate ? 'active' : ''}`}
-            style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '0.8rem' }}
-            onClick={() => setIsAutoRotate(!isAutoRotate)}
-          >
-            Rotate
-          </button>
+            {/* Auto Rotate Toggle */}
+            <button
+              className={`glass-btn ${isAutoRotate ? 'active' : ''}`}
+              onClick={() => setIsAutoRotate(!isAutoRotate)}
+            >
+              Rotate
+            </button>
 
-          {/* Settings button */}
-          <button
-            className={`glass-btn ${showSettings ? 'active' : ''}`}
-            style={{ padding: '7px 10px', borderRadius: '8px' }}
-            onClick={() => setShowSettings(!showSettings)}
-            title="Adjust Lighting & Breathing Speed"
-          >
-            <Sliders size={15} />
-          </button>
+            {/* Settings button */}
+            <button
+              className={`glass-btn ${showSettings ? 'active' : ''}`}
+              onClick={() => setShowSettings(!showSettings)}
+              title="Adjust Lighting & Breathing Speed"
+            >
+              <Sliders size={15} />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Subtle Hint */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '24px',
-          left: '20px',
-          fontSize: '0.74rem',
-          color: 'var(--text-dim)',
-          pointerEvents: 'none'
-        }}
-      >
-        Left-click to Rotate • Right-click to Pan • Scroll to Zoom
+      <div className="viewer-hint">
+        {isTouchDevice ? 'Drag to Rotate • 2 Fingers to Zoom / Pan' : 'Left-click to Rotate • Right-click to Pan • Scroll to Zoom'}
       </div>
     </>
   );

@@ -108,29 +108,37 @@ export default function DemonCanvas({
     controls.maxDistance = 12;
     controls.target.set(0, 0.15, 0);
 
-    const FOCUS_CONFIG = {
-      both: {
-        target: new THREE.Vector3(0, 0.25, 0),
-        camera: new THREE.Vector3(0, 0.45, 4.2)
-      },
-      demon: {
-        target: new THREE.Vector3(-1.35, 0.35, 0),
-        camera: new THREE.Vector3(-1.35, 0.55, 2.8)
-      },
-      orc: {
-        target: new THREE.Vector3(1.15, 0.20, 0),
-        camera: new THREE.Vector3(1.15, 0.40, 2.5)
-      }
+    const getFocusConfig = (currentAspect) => {
+      const isPortrait = currentAspect < 1.0;
+      // In portrait on smartphones, distance scales so both Demon and Orc fit horizontally
+      const bothZ = isPortrait ? Math.max(5.4, 3.8 / Math.max(currentAspect, 0.45)) : 4.2;
+      return {
+        both: {
+          target: new THREE.Vector3(0, 0.25, 0),
+          camera: new THREE.Vector3(0, 0.45, Math.min(bothZ, 7.2))
+        },
+        demon: {
+          target: new THREE.Vector3(-1.35, 0.35, 0),
+          camera: new THREE.Vector3(-1.35, 0.50, isPortrait ? 3.4 : 2.8)
+        },
+        orc: {
+          target: new THREE.Vector3(1.15, 0.20, 0),
+          camera: new THREE.Vector3(1.15, 0.35, isPortrait ? 3.0 : 2.5)
+        }
+      };
     };
 
-    let targetCamPos = new THREE.Vector3(0, 0.35, 3.8);
-    let targetLookAt = new THREE.Vector3(0, 0.15, 0);
+    const initialConfig = getFocusConfig(width / height);
+    camera.position.copy(initialConfig.both.camera);
+
+    let targetCamPos = new THREE.Vector3().copy(initialConfig.both.camera);
+    let targetLookAt = new THREE.Vector3().copy(initialConfig.both.target);
     let isFocusAnimating = false;
     let prevFocusTarget = stateRef.current.focusTarget;
 
     if (onResetViewCallback) {
       onResetViewCallback(() => {
-        const config = FOCUS_CONFIG[stateRef.current.focusTarget] || FOCUS_CONFIG.both;
+        const config = getFocusConfig(camera.aspect)[stateRef.current.focusTarget] || getFocusConfig(camera.aspect).both;
         targetCamPos.copy(config.camera);
         targetLookAt.copy(config.target);
         isFocusAnimating = true;
@@ -462,7 +470,7 @@ export default function DemonCanvas({
         // Check focus changes
         if (stateRef.current.focusTarget !== prevFocusTarget) {
           prevFocusTarget = stateRef.current.focusTarget;
-          const config = FOCUS_CONFIG[prevFocusTarget] || FOCUS_CONFIG.both;
+          const config = getFocusConfig(camera.aspect)[prevFocusTarget] || getFocusConfig(camera.aspect).both;
           targetCamPos.copy(config.camera);
           targetLookAt.copy(config.target);
           isFocusAnimating = true;
@@ -805,8 +813,10 @@ export default function DemonCanvas({
                   setLoading(false);
                 }}
                 style={{
-                  padding: '16px 42px',
-                  fontSize: '1.05rem',
+                  padding: '14px clamp(20px, 6vw, 42px)',
+                  maxWidth: 'min(360px, calc(100vw - 36px))',
+                  boxSizing: 'border-box',
+                  fontSize: 'clamp(0.9rem, 3.8vw, 1.05rem)',
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   borderRadius: '32px',
@@ -816,7 +826,8 @@ export default function DemonCanvas({
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '12px',
+                  justifyContent: 'center',
+                  gap: '10px',
                   color: '#fff',
                   transition: 'all 0.25s ease'
                 }}

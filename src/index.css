@@ -131,3 +131,290 @@ button:focus-visible {
 .glow-text-malphas {
   text-shadow: 0 0 12px var(--accent-malphas-glow);
 }
+
+/* =========================================================
+   Responsive Controls Layout (Desktop, Tablet & Smartphone)
+   ========================================================= */
+.viewer-header {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.viewer-title-box {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.viewer-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewer-title-sub {
+  font-size: 0.78rem;
+  color: #ffb703;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.viewer-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.viewer-focus-box {
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.viewer-tools-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.viewer-fps-badge {
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+}
+
+.viewer-bottom-container {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+  max-width: calc(100vw - 24px);
+  width: auto;
+}
+
+.viewer-settings-drawer {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: rgba(15, 14, 18, 0.95);
+}
+
+.viewer-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(15, 14, 18, 0.92);
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+}
+
+.viewer-render-modes {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.viewer-render-modes::-webkit-scrollbar {
+  display: none;
+}
+
+.viewer-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.viewer-action-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.viewer-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 20px;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* Tablet & Mobile Breakpoint (<= 860px) */
+@media (max-width: 860px) {
+  .viewer-header {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .viewer-title-box {
+    padding: 6px 12px;
+  }
+
+  .viewer-focus-box {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .viewer-tools-box {
+    gap: 6px;
+  }
+
+  .viewer-controls-bar {
+    flex-direction: column;
+    width: calc(100vw - 20px);
+    max-width: 500px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .viewer-render-modes {
+    width: 100%;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+
+  .viewer-divider {
+    display: none;
+  }
+
+  .viewer-action-toggles {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .viewer-action-toggles .glass-btn {
+    justify-content: center;
+    padding: 8px 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .viewer-bottom-container {
+    bottom: max(12px, env(safe-area-inset-bottom, 12px));
+    width: calc(100% - 20px);
+  }
+
+  .viewer-hint {
+    display: none;
+  }
+}
+
+/* Compact Smartphone Breakpoint (<= 520px) */
+@media (max-width: 520px) {
+  .viewer-header {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+
+  .viewer-subtitle {
+    display: none;
+  }
+
+  .viewer-title {
+    font-size: 0.88rem;
+  }
+
+  .viewer-title-sub {
+    font-size: 0.7rem;
+  }
+
+  .viewer-fps-badge {
+    display: none;
+  }
+
+  .viewer-tools-box .btn-label {
+    display: none;
+  }
+
+  .viewer-tools-box .glass-btn {
+    padding: 8px 10px;
+    min-width: 36px;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .viewer-focus-box {
+    padding: 3px;
+  }
+
+  .viewer-focus-box .glass-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .viewer-render-modes .mode-btn {
+    padding: 7px 11px;
+    font-size: 0.76rem;
+    flex-shrink: 0;
+  }
+
+  .viewer-action-toggles .glass-btn {
+    padding: 8px 2px;
+    font-size: 0.72rem;
+  }
+
+  .viewer-settings-drawer {
+    padding: 12px 14px;
+  }
+}
+
+/* Extra small screens (<= 360px) */
+@media (max-width: 360px) {
+  .viewer-title {
+    font-size: 0.82rem;
+  }
+  .viewer-focus-box .glass-btn {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+  }
+  .viewer-action-toggles .glass-btn {
+    font-size: 0.68rem;
+  }
+}
