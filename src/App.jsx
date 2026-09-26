@@ -20,24 +20,21 @@ export default function App() {
   const audioRef = useRef(null);
   const isLoadedRef = useRef(false);
 
-  // Preload soundtrack immediately so it's buffered and ready to play without delay
+  const BASE = import.meta.env.BASE_URL || '/';
+  const audioUrl = `${BASE}soundtrack.mp3`.replace('//', '/');
+
+  // Audio setup: preload and attempt autoplay as early as possible
   useEffect(() => {
-    try {
-      const BASE = import.meta.env.BASE_URL || '/';
-      const audioUrl = `${BASE}soundtrack.mp3`.replace('//', '/');
-      const audio = new Audio(audioUrl);
-      audio.loop = true;
-      audio.volume = 0.75;
-      audio.muted = false;
-      audio.preload = 'auto';
-      audioRef.current = audio;
-    } catch (err) {
-      console.warn('Audio preloading error:', err);
+    if (audioRef.current) {
+      audioRef.current.volume = 0.75;
+      audioRef.current.muted = false;
+      // Proactively try to play early if permitted by browser MEI
+      audioRef.current.play().catch(() => {});
     }
 
-    // Capture early user gesture to ensure audio plays immediately upon load completion
+    // Capture user interaction anywhere on the document to ensure audio starts
     const unlockOnGesture = () => {
-      if (audioRef.current && isLoadedRef.current && !audioRef.current.muted && audioRef.current.paused) {
+      if (audioRef.current && !isMuted && audioRef.current.paused) {
         audioRef.current.play().catch(() => {});
       }
     };
@@ -50,34 +47,51 @@ export default function App() {
       window.removeEventListener('pointerdown', unlockOnGesture);
       window.removeEventListener('touchstart', unlockOnGesture);
       window.removeEventListener('keydown', unlockOnGesture);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
     };
-  }, []);
+  }, [isMuted]);
 
-  const startSoundtrack = () => {
+  const startSoundtrack = (onSuccess, onBlocked) => {
     isLoadedRef.current = true;
+    if (!audioRef.current || isMuted) {
+      if (onSuccess) onSuccess();
+      return;
+    }
+
+    audioRef.current.muted = false;
+    audioRef.current.volume = 0.75;
+
+    // If already playing from early gesture
+    if (!audioRef.current.paused) {
+      if (onSuccess) onSuccess();
+      return;
+    }
+
+    const playPromise = audioRef.current.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          if (onSuccess) onSuccess();
+        })
+        .catch((err) => {
+          console.warn('Autoplay restricted by browser policy; awaiting user gesture to enter:', err);
+          if (onBlocked) {
+            onBlocked();
+          } else if (onSuccess) {
+            onSuccess();
+          }
+        });
+    } else {
+      if (onSuccess) onSuccess();
+    }
+  };
+
+  const handleUserEnter = () => {
     if (audioRef.current && !isMuted) {
       audioRef.current.muted = false;
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('Autoplay restricted by browser; starting on first gesture:', err);
-          const playOnGesture = () => {
-            if (audioRef.current && !audioRef.current.muted) {
-              audioRef.current.play().catch(() => {});
-            }
-            window.removeEventListener('pointerdown', playOnGesture);
-            window.removeEventListener('touchstart', playOnGesture);
-            window.removeEventListener('keydown', playOnGesture);
-          };
-          window.addEventListener('pointerdown', playOnGesture, { once: true });
-          window.addEventListener('touchstart', playOnGesture, { once: true });
-          window.addEventListener('keydown', playOnGesture, { once: true });
-        });
-      }
+      audioRef.current.volume = 0.75;
+      audioRef.current.play().catch((err) => {
+        console.warn('Audio play on enter failed:', err);
+      });
     }
   };
 
@@ -134,6 +148,17 @@ export default function App() {
           resetViewFnRef.current = fn;
         }}
         onLoadComplete={startSoundtrack}
+        onUserEnter={handleUserEnter}
+      />
+
+      {/* Background Soundtrack Audio Element */}
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        loop
+        playsInline
+        preload="auto"
+        style={{ display: 'none' }}
       />
 
       {/* Floating Viewer Controls */}

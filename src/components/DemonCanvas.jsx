@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Volume2 } from 'lucide-react';
 
 const BASE = import.meta.env.BASE_URL || '/';
 const assetPath = (path) => `${BASE}${path.replace(/^\//, '')}`;
@@ -21,7 +22,8 @@ export default function DemonCanvas({
   onFpsUpdate,
   canvasRefCallback,
   onResetViewCallback,
-  onLoadComplete
+  onLoadComplete,
+  onUserEnter
 }) {
   const mountRef = useRef(null);
   const stateRef = useRef({
@@ -40,6 +42,7 @@ export default function DemonCanvas({
   const [loadStage, setLoadStage] = useState('Initializing scene...');
   const [loadProgress, setLoadProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [readyToEnter, setReadyToEnter] = useState(false);
 
   // Sync state ref
   useEffect(() => {
@@ -390,9 +393,21 @@ export default function DemonCanvas({
         await loadOrcModel;
 
         setLoadProgress(100);
-        setLoading(false);
+        setLoadStage('Ready!');
+
         if (onLoadComplete) {
-          onLoadComplete();
+          onLoadComplete(
+            () => {
+              // Autoplay succeeded or already active
+              setLoading(false);
+            },
+            () => {
+              // Autoplay blocked by browser policy without prior user gesture
+              setReadyToEnter(true);
+            }
+          );
+        } else {
+          setLoading(false);
         }
       } catch (err) {
         console.error('Asset load error:', err);
@@ -724,6 +739,12 @@ export default function DemonCanvas({
       {/* Loading Screen */}
       {loading && (
         <div
+          onClick={() => {
+            if (readyToEnter) {
+              if (onUserEnter) onUserEnter();
+              setLoading(false);
+            }
+          }}
           style={{
             position: 'absolute',
             inset: 0,
@@ -731,71 +752,163 @@ export default function DemonCanvas({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#0a090e',
-            zIndex: 100
+            background: 'radial-gradient(ellipse at center, rgba(22, 16, 28, 0.97) 0%, rgba(8, 6, 8, 0.99) 100%)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            zIndex: 100,
+            cursor: readyToEnter ? 'pointer' : 'default',
+            transition: 'all 0.4s ease',
+            userSelect: 'none'
           }}
         >
-          <div
-            style={{
-              width: '54px',
-              height: '54px',
-              border: '3px solid rgba(255, 255, 255, 0.1)',
-              borderTopColor: '#ff4d26',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              marginBottom: '20px'
-            }}
-          />
-          <div
-            style={{
-              fontSize: '1.15rem',
-              fontWeight: 700,
-              color: '#f5f3f4',
-              letterSpacing: '0.04em',
-              marginBottom: '8px'
-            }}
-          >
-            Loading Demon & Orc 3D Models...
-          </div>
-          <div
-            style={{
-              fontSize: '0.82rem',
-              color: '#9a94a0',
-              marginBottom: '20px',
-              textAlign: 'center',
-              maxWidth: '460px'
-            }}
-          >
-            {loadStage}
-          </div>
-          <div
-            style={{
-              width: '280px',
-              height: '5px',
-              background: 'rgba(255,255,255,0.08)',
-              borderRadius: '3px',
-              overflow: 'hidden'
-            }}
-          >
+          {readyToEnter ? (
             <div
               style={{
-                width: `${loadProgress}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #ff4d26, #ff8c42)',
-                transition: 'width 0.25s ease'
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                padding: '24px'
               }}
-            />
-          </div>
-          <span
-            style={{
-              marginTop: '10px',
-              fontSize: '0.8rem',
-              color: '#777',
-              fontFamily: 'monospace'
-            }}
-          >
-            {loadProgress}%
-          </span>
+            >
+              <div
+                style={{
+                  fontSize: '0.85rem',
+                  letterSpacing: '0.25em',
+                  textTransform: 'uppercase',
+                  color: '#ff8c42',
+                  fontWeight: 600,
+                  marginBottom: '10px'
+                }}
+              >
+                Initial Load Complete
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: 'clamp(1.6rem, 3.8vw, 2.4rem)',
+                  fontWeight: 700,
+                  color: '#f5f3f4',
+                  letterSpacing: '0.06em',
+                  marginBottom: '26px',
+                  textShadow: '0 0 28px rgba(255, 77, 38, 0.45)'
+                }}
+              >
+                Demon & Orc 3D Showcase
+              </div>
+
+              <button
+                className="glass-btn active"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onUserEnter) onUserEnter();
+                  setLoading(false);
+                }}
+                style={{
+                  padding: '16px 42px',
+                  fontSize: '1.05rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  borderRadius: '32px',
+                  background: 'linear-gradient(135deg, rgba(255, 77, 38, 0.4), rgba(255, 140, 66, 0.3))',
+                  border: '1px solid rgba(255, 140, 66, 0.8)',
+                  boxShadow: '0 0 35px rgba(255, 77, 38, 0.55)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  color: '#fff',
+                  transition: 'all 0.25s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 0 50px rgba(255, 77, 38, 0.8)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 0 35px rgba(255, 77, 38, 0.55)';
+                }}
+              >
+                <Volume2 size={22} color="#ff8c42" />
+                <span>ENTER 3D SHOWCASE</span>
+              </button>
+
+              <div
+                style={{
+                  marginTop: '20px',
+                  fontSize: '0.82rem',
+                  color: '#9a94a0',
+                  letterSpacing: '0.04em'
+                }}
+              >
+                Soundtrack will play on loop • Click anywhere to enter
+              </div>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  border: '3px solid rgba(255, 255, 255, 0.1)',
+                  borderTopColor: '#ff4d26',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '20px'
+                }}
+              />
+              <div
+                style={{
+                  fontSize: '1.15rem',
+                  fontWeight: 700,
+                  color: '#f5f3f4',
+                  letterSpacing: '0.04em',
+                  marginBottom: '8px'
+                }}
+              >
+                Loading Demon & Orc 3D Models...
+              </div>
+              <div
+                style={{
+                  fontSize: '0.82rem',
+                  color: '#9a94a0',
+                  marginBottom: '20px',
+                  textAlign: 'center',
+                  maxWidth: '460px'
+                }}
+              >
+                {loadStage}
+              </div>
+              <div
+                style={{
+                  width: '280px',
+                  height: '5px',
+                  background: 'rgba(255,255,255,0.08)',
+                  borderRadius: '3px',
+                  overflow: 'hidden'
+                }}
+              >
+                <div
+                  style={{
+                    width: `${loadProgress}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #ff4d26, #ff8c42)',
+                    transition: 'width 0.25s ease'
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  marginTop: '10px',
+                  fontSize: '0.8rem',
+                  color: '#777',
+                  fontFamily: 'monospace'
+                }}
+              >
+                {loadProgress}%
+              </span>
+            </>
+          )}
         </div>
       )}
 
