@@ -106,16 +106,16 @@ export default function DemonCanvas({
 
     const FOCUS_CONFIG = {
       both: {
-        target: new THREE.Vector3(0, 0.15, 0),
-        camera: new THREE.Vector3(0, 0.35, 3.8)
+        target: new THREE.Vector3(0, 0.20, 0),
+        camera: new THREE.Vector3(0, 0.40, 3.9)
       },
       demon: {
-        target: new THREE.Vector3(-1.20, 0.15, 0),
-        camera: new THREE.Vector3(-1.20, 0.35, 2.4)
+        target: new THREE.Vector3(-1.25, 0.20, 0),
+        camera: new THREE.Vector3(-1.25, 0.40, 2.5)
       },
       orc: {
-        target: new THREE.Vector3(1.10, 0.15, 0),
-        camera: new THREE.Vector3(1.10, 0.35, 2.4)
+        target: new THREE.Vector3(1.15, 0.20, 0),
+        camera: new THREE.Vector3(1.15, 0.40, 2.5)
       }
     };
 
@@ -307,9 +307,9 @@ export default function DemonCanvas({
                 actionDemon.play();
               }
 
-              // Demon bounding box Y is [0.0, 1.04]. Scale 1.733 gives ~1.80m height (matching Orc)
-              gltf.scene.scale.set(1.733, 1.733, 1.733);
-              gltf.scene.position.set(-1.20, groundY, 0);
+              // Demon scaled by 2.0 aligns the Demon's head & eye-line directly with the Orc's head
+              gltf.scene.scale.set(2.0, 2.0, 2.0);
+              gltf.scene.position.set(-1.25, groundY, 0);
               gltf.scene.rotation.y = 0.12;
 
               modelsGroup.add(gltf.scene);
@@ -375,7 +375,7 @@ export default function DemonCanvas({
 
               // Orc bounding box Y is [0.0, 1.897]. Scale 0.95 gives ~1.80m height
               orcMesh.scale.set(0.95, 0.95, 0.95);
-              orcMesh.position.set(1.10, groundY, 0);
+              orcMesh.position.set(1.15, groundY, 0);
               orcMesh.rotation.y = -0.12;
 
               modelsGroup.add(orcMesh);
@@ -514,8 +514,8 @@ export default function DemonCanvas({
             mixerDemon.update(0);
           }
           if (demonScene) {
-            demonScene.scale.set(1.733, 1.733, 1.733);
-            demonScene.position.set(-1.20, groundY, 0);
+            demonScene.scale.set(2.0, 2.0, 2.0);
+            demonScene.position.set(-1.25, groundY, 0);
             demonScene.rotation.set(0, 0.12, 0);
             if (demonMaterial && stateRef.current.renderMode === 'pbr') {
               demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity;
@@ -523,7 +523,7 @@ export default function DemonCanvas({
           }
           if (orcMesh) {
             orcMesh.scale.set(0.95, 0.95, 0.95);
-            orcMesh.position.set(1.10, groundY, 0);
+            orcMesh.position.set(1.15, groundY, 0);
             orcMesh.rotation.set(0, -0.12, 0);
           }
         }
