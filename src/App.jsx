@@ -14,6 +14,12 @@ export default function App() {
   const [animSpeed, setAnimSpeed] = useState(1.0);
   const [fps, setFps] = useState(60);
 
+  const [characterProgress, setCharacterProgress] = useState({
+    demon: { percent: 0, stage: 'Connecting...', loaded: false },
+    orc: { percent: 0, stage: 'Connecting...', loaded: false },
+    orc2: { percent: 0, stage: 'Connecting...', loaded: false }
+  });
+
   const canvasElementRef = useRef(null);
   const resetViewFnRef = useRef(null);
 
@@ -56,6 +62,7 @@ export default function App() {
         onResetViewCallback={(fn) => {
           resetViewFnRef.current = fn;
         }}
+        onProgressUpdate={setCharacterProgress}
       />
 
       {/* Floating Viewer Controls */}
@@ -81,6 +88,7 @@ export default function App() {
         setAnimSpeed={setAnimSpeed}
         onResetView={handleResetView}
         onCaptureScreenshot={handleCaptureScreenshot}
+        characterProgress={characterProgress}
       />
     </div>
   );

@@ -112,6 +112,11 @@ button:focus-visible {
 }
 
 /* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes pulseGlow {
   0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 8px rgba(255, 62, 24, 0.4)); }
   50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(255, 62, 24, 0.8)); }

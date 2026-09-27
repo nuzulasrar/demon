@@ -35,7 +35,8 @@ export default function ViewerControls({
   animSpeed,
   setAnimSpeed,
   onResetView,
-  onCaptureScreenshot
+  onCaptureScreenshot,
+  characterProgress
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -91,6 +92,10 @@ export default function ViewerControls({
           {FOCUS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             const isSelected = focusTarget === opt.id || (opt.id === 'all' && focusTarget === 'both');
+            const charProg = characterProgress?.[opt.id];
+            const isLoaded = charProg ? charProg.loaded : true;
+            const percent = charProg ? charProg.percent : 100;
+
             return (
               <button
                 key={opt.id}
@@ -105,6 +110,22 @@ export default function ViewerControls({
               >
                 <Icon size={14} color={isSelected ? '#ff4d26' : 'currentColor'} />
                 <span>{opt.label}</span>
+                {charProg && !isLoaded && (
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 77, 38, 0.2)',
+                      color: '#ff8c42',
+                      marginLeft: '2px'
+                    }}
+                  >
+                    {percent}%
+                  </span>
+                )}
               </button>
             );
           })}

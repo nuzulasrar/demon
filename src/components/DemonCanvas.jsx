@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import CharacterLoadingHUD from './CharacterLoadingHUD';
 
 const BASE = import.meta.env.BASE_URL || '/';
 const assetPath = (path) => `${BASE}${path.replace(/^\//, '')}`;
@@ -20,7 +21,8 @@ export default function DemonCanvas({
   animSpeed = 1.0,
   onFpsUpdate,
   canvasRefCallback,
-  onResetViewCallback
+  onResetViewCallback,
+  onProgressUpdate
 }) {
   const mountRef = useRef(null);
   const stateRef = useRef({
@@ -33,6 +35,12 @@ export default function DemonCanvas({
     focusTarget,
     isAnimating,
     animSpeed
+  });
+
+  const [characterProgress, setCharacterProgress] = useState({
+    demon: { percent: 0, stage: 'Connecting...', loaded: false, error: null },
+    orc: { percent: 0, stage: 'Connecting...', loaded: false, error: null },
+    orc2: { percent: 0, stage: 'Connecting...', loaded: false, error: null }
   });
 
   const [errorMsg, setErrorMsg] = useState(null);
@@ -265,42 +273,84 @@ export default function DemonCanvas({
     let orc2Mesh = null;
     let orc2Material = null;
 
-    const loadAllAssets = async () => {
+    const updateCharProgress = (key, update) => {
+      setCharacterProgress((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], ...update }
+      }));
+      if (onProgressUpdate) {
+        onProgressUpdate((prev) => ({
+          ...prev,
+          [key]: { ...prev[key], ...update }
+        }));
+      }
+    };
+
+    const objLoader = new OBJLoader();
+    const gltfLoader = new GLTFLoader();
+
+    // 1. Load Demon Head (54MB GLB + textures)
+    const loadDemon = async () => {
       try {
-        // Load Demon Head textures (from asset_demon_head/export, GLTF convention: flipY = false)
-        const demonTexPromise = Promise.all([
-          loadTex(assetPath('asset_demon_head/export/Demon_BaseColor.png'), true, false),
-          loadTex(assetPath('asset_demon_head/export/Demon_Normal.png'), false, false),
-          loadTex(assetPath('asset_demon_head/export/Demon_Roughness.png'), false, false),
-          loadTex(assetPath('asset_demon_head/export/Demon_Emission.png'), true, false),
-          loadTex(assetPath('asset_demon_head/export/Demon_Head_export_preview.png'), true, false)
+        updateCharProgress('demon', { stage: 'Fetching textures...', percent: 5 });
+        let texLoaded = 0;
+        const totalTex = 5;
+        let meshRatio = 0;
+
+        const reportProgress = (stage) => {
+          const texRatio = texLoaded / totalTex;
+          const p = Math.min(99, Math.round(texRatio * 35 + meshRatio * 65));
+          updateCharProgress('demon', { percent: p, stage: stage || `Loading ${p}%` });
+        };
+
+        const onTex = (tex) => {
+          texLoaded++;
+          reportProgress(`Textures ${texLoaded}/${totalTex}`);
+          return tex;
+        };
+
+        const texPromises = Promise.all([
+          loadTex(assetPath('asset_demon_head/export/Demon_BaseColor.png'), true, false).then(onTex),
+          loadTex(assetPath('asset_demon_head/export/Demon_Normal.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_demon_head/export/Demon_Roughness.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_demon_head/export/Demon_Emission.png'), true, false).then(onTex),
+          loadTex(assetPath('asset_demon_head/export/Demon_Head_export_preview.png'), true, false).then(onTex)
         ]);
 
-        // Load Old Orc textures (OBJ convention: flipY = true)
-        const orcTexPromise = Promise.all([
-          loadTex(assetPath('asset_orc/texture_diffuse.png'), true, true),
-          loadTex(assetPath('asset_orc/texture_normal.png'), false, true),
-          loadTex(assetPath('asset_orc/texture_roughness.png'), false, true),
-          loadTex(assetPath('asset_orc/texture_metallic.png'), false, true),
-          loadTex(assetPath('asset_orc/texture_pbr.png'), false, true),
-          loadTex(assetPath('asset_orc/shaded.png'), true, true)
-        ]);
+        const meshPromise = new Promise((resolve, reject) => {
+          gltfLoader.load(
+            assetPath('asset_demon_head/export/Demon_Head.glb'),
+            (gltf) => {
+              let mesh = null;
+              gltf.scene.traverse((child) => {
+                if (child.isMesh && !mesh) {
+                  mesh = child;
+                  child.castShadow = true;
+                  child.receiveShadow = true;
+                }
+              });
+              if (!mesh) {
+                reject(new Error('Mesh not found in Demon_Head.glb'));
+                return;
+              }
+              meshRatio = 1.0;
+              reportProgress('Decoding mesh...');
+              resolve(mesh);
+            },
+            (xhr) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / xhr.total);
+              } else if (xhr.loaded > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / 56000000);
+              }
+              reportProgress(`Mesh ${Math.round(meshRatio * 100)}%`);
+            },
+            (err) => reject(err)
+          );
+        });
 
-        // Load New Orc (asset_orc_2) textures (GLTF convention: flipY = false)
-        const orc2TexPromise = Promise.all([
-          loadTex(assetPath('asset_orc_2/texture_diffuse.png'), true, false),
-          loadTex(assetPath('asset_orc_2/texture_normal.png'), false, false),
-          loadTex(assetPath('asset_orc_2/texture_roughness.png'), false, false),
-          loadTex(assetPath('asset_orc_2/texture_metallic.png'), false, false),
-          loadTex(assetPath('asset_orc_2/texture_pbr.png'), false, false),
-          loadTex(assetPath('asset_orc_2/shaded.png'), true, false)
-        ]);
-
-        const [
-          [dDiffuse, dNormal, dRoughness, dEmission, dShaded],
-          [oDiffuse, oNormal, oRoughness, oMetallic, oPbr, oShaded],
-          [o2Diffuse, o2Normal, o2Roughness, o2Metallic, o2Pbr, o2Shaded]
-        ] = await Promise.all([demonTexPromise, orcTexPromise, orc2TexPromise]);
+        const [textures, mesh] = await Promise.all([texPromises, meshPromise]);
+        const [dDiffuse, dNormal, dRoughness, dEmission, dShaded] = textures;
 
         demonTextures.diffuse = dDiffuse;
         demonTextures.normal = dNormal;
@@ -310,83 +360,77 @@ export default function DemonCanvas({
         demonTextures.pbr = null;
         demonTextures.shaded = dShaded;
 
-        orcTextures.diffuse = oDiffuse;
-        orcTextures.normal = oNormal;
-        orcTextures.roughness = oRoughness;
-        orcTextures.metallic = oMetallic;
-        orcTextures.pbr = oPbr;
-        orcTextures.shaded = oShaded;
+        if (mesh.geometry) {
+          if (!mesh.geometry.attributes.uv2 && mesh.geometry.attributes.uv) {
+            mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv);
+          }
+          if (!mesh.geometry.attributes.tangent) {
+            try {
+              mesh.geometry.computeTangents();
+            } catch (e) {
+              console.warn('Demon tangent computation skipped:', e);
+            }
+          }
+        }
 
-        orc2Textures.diffuse = o2Diffuse;
-        orc2Textures.normal = o2Normal;
-        orc2Textures.roughness = o2Roughness;
-        orc2Textures.metallic = o2Metallic;
-        orc2Textures.pbr = o2Pbr;
-        orc2Textures.shaded = o2Shaded;
-
-        const objLoader = new OBJLoader();
-        const gltfLoader = new GLTFLoader();
-
-        const loadDemonModel = new Promise((resolve, reject) => {
-          gltfLoader.load(
-            assetPath('asset_demon_head/export/Demon_Head.glb'),
-            (gltf) => {
-              gltf.scene.traverse((child) => {
-                if (child.isMesh && !demonMesh) {
-                  demonMesh = child;
-                  child.castShadow = true;
-                  child.receiveShadow = true;
-                }
-              });
-
-              if (!demonMesh) {
-                reject(new Error('Mesh not found in asset_demon_head/export/Demon_Head.glb'));
-                return;
-              }
-
-              if (demonMesh.geometry) {
-                if (!demonMesh.geometry.attributes.uv2 && demonMesh.geometry.attributes.uv) {
-                  demonMesh.geometry.setAttribute('uv2', demonMesh.geometry.attributes.uv);
-                }
-                if (!demonMesh.geometry.attributes.tangent) {
-                  try {
-                    demonMesh.geometry.computeTangents();
-                  } catch (e) {
-                    console.warn('Demon tangent computation skipped:', e);
-                  }
-                }
-              }
-
-              demonMaterial = new THREE.MeshStandardMaterial({
-                map: demonTextures.diffuse || null,
-                normalMap: demonTextures.normal || null,
-                normalScale: new THREE.Vector2(1.0, 1.0),
-                roughnessMap: demonTextures.roughness || null,
-                roughness: 0.72,
-                metalness: 0.0,
-                emissiveMap: demonTextures.emissive || null,
-                emissive: new THREE.Color(0xff4411),
-                emissiveIntensity: 5.0,
-                color: new THREE.Color(1.22, 1.18, 1.18)
-              });
-              demonMesh.material = demonMaterial;
-
-              // Demon Head bust scaled to exactly match Old Orc height (1.802m) and ground level
-              demonMesh.scale.set(demonBaseScale, demonBaseScale, demonBaseScale);
-              demonMesh.position.set(-1.75, demonBaseY, 0);
-              demonMesh.rotation.y = 0.16;
-              demonMesh.layers.enable(1);
-
-              modelsGroup.add(demonMesh);
-              resolve();
-            },
-            undefined,
-            (err) => reject(err)
-          );
+        demonMaterial = new THREE.MeshStandardMaterial({
+          map: demonTextures.diffuse || null,
+          normalMap: demonTextures.normal || null,
+          normalScale: new THREE.Vector2(1.0, 1.0),
+          roughnessMap: demonTextures.roughness || null,
+          roughness: 0.72,
+          metalness: 0.0,
+          emissiveMap: demonTextures.emissive || null,
+          emissive: new THREE.Color(0xff4411),
+          emissiveIntensity: 5.0,
+          color: new THREE.Color(1.22, 1.18, 1.18)
         });
+        mesh.material = demonMaterial;
+        mesh.scale.set(demonBaseScale, demonBaseScale, demonBaseScale);
+        mesh.position.set(-1.75, demonBaseY, 0);
+        mesh.rotation.y = 0.16;
+        mesh.layers.enable(1);
 
-        // Load Old Orc OBJ model
-        const loadOrcModel = new Promise((resolve, reject) => {
+        demonMesh = mesh;
+        modelsGroup.add(demonMesh);
+
+        updateCharProgress('demon', { percent: 100, stage: 'Ready', loaded: true });
+      } catch (err) {
+        console.error('Demon load error:', err);
+        updateCharProgress('demon', { percent: 0, stage: 'Error', loaded: false, error: err.message });
+      }
+    };
+
+    // 2. Load Old Orc (7.4MB OBJ + 48MB textures)
+    const loadOrc = async () => {
+      try {
+        updateCharProgress('orc', { stage: 'Fetching textures...', percent: 5 });
+        let texLoaded = 0;
+        const totalTex = 6;
+        let meshRatio = 0;
+
+        const reportProgress = (stage) => {
+          const texRatio = texLoaded / totalTex;
+          const p = Math.min(99, Math.round(texRatio * 55 + meshRatio * 45));
+          updateCharProgress('orc', { percent: p, stage: stage || `Loading ${p}%` });
+        };
+
+        const onTex = (tex) => {
+          texLoaded++;
+          reportProgress(`Textures ${texLoaded}/${totalTex}`);
+          return tex;
+        };
+
+        const texPromises = Promise.all([
+          loadTex(assetPath('asset_orc/texture_diffuse.png'), true, true).then(onTex),
+          loadTex(assetPath('asset_orc/texture_normal.png'), false, true).then(onTex),
+          loadTex(assetPath('asset_orc/texture_roughness.png'), false, true).then(onTex),
+          loadTex(assetPath('asset_orc/texture_metallic.png'), false, true).then(onTex),
+          loadTex(assetPath('asset_orc/texture_pbr.png'), false, true).then(onTex),
+          loadTex(assetPath('asset_orc/shaded.png'), true, true).then(onTex)
+        ]);
+
+        const meshPromise = new Promise((resolve, reject) => {
           objLoader.load(
             assetPath('asset_orc/base.obj'),
             (obj) => {
@@ -396,113 +440,187 @@ export default function DemonCanvas({
                   rawGeometry = child.geometry;
                 }
               });
-
               if (!rawGeometry) {
                 reject(new Error('Geometry not found in orc base.obj'));
                 return;
               }
-
-              // Index vertices and preserve authentic Blender normals
-              const indexedGeometry = mergeVertices(rawGeometry);
-              // Setup uv2 for Ambient Occlusion
-              indexedGeometry.setAttribute('uv2', indexedGeometry.attributes.uv);
-              // Compute tangents for optimal normal map lighting
-              indexedGeometry.computeTangents();
-
-              orcMaterial = new THREE.MeshStandardMaterial({
-                map: orcTextures.diffuse || null,
-                normalMap: orcTextures.normal || null,
-                normalScale: new THREE.Vector2(1.0, 1.0),
-                roughnessMap: orcTextures.pbr || orcTextures.roughness || null,
-                roughness: 1.0,
-                metalnessMap: orcTextures.pbr || orcTextures.metallic || null,
-                metalness: 1.0,
-                aoMap: orcTextures.pbr || null,
-                aoMapIntensity: 1.0,
-                emissive: new THREE.Color(0x000000),
-                emissiveIntensity: 0.0
-              });
-
-              orcMesh = new THREE.Mesh(indexedGeometry, orcMaterial);
-              orcMesh.castShadow = true;
-              orcMesh.receiveShadow = true;
-
-              // Old Orc scaled ~1.80m height (positioned in center-right)
-              orcMesh.scale.set(0.95, 0.95, 0.95);
-              orcMesh.position.set(0.25, groundY, 0);
-              orcMesh.rotation.y = -0.06;
-              orcMesh.layers.set(0);
-
-              modelsGroup.add(orcMesh);
-              resolve();
+              meshRatio = 1.0;
+              reportProgress('Optimizing OBJ geometry...');
+              resolve(rawGeometry);
             },
-            undefined,
+            (xhr) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / xhr.total);
+              } else if (xhr.loaded > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / 7800000);
+              }
+              reportProgress(`Mesh ${Math.round(meshRatio * 100)}%`);
+            },
             (err) => reject(err)
           );
         });
 
-        // Load New Orc (asset_orc_2) - GLB
-        const loadOrc2Model = new Promise((resolve, reject) => {
+        const [textures, rawGeometry] = await Promise.all([texPromises, meshPromise]);
+        const [oDiffuse, oNormal, oRoughness, oMetallic, oPbr, oShaded] = textures;
+
+        orcTextures.diffuse = oDiffuse;
+        orcTextures.normal = oNormal;
+        orcTextures.roughness = oRoughness;
+        orcTextures.metallic = oMetallic;
+        orcTextures.pbr = oPbr;
+        orcTextures.shaded = oShaded;
+
+        const indexedGeometry = mergeVertices(rawGeometry);
+        indexedGeometry.setAttribute('uv2', indexedGeometry.attributes.uv);
+        indexedGeometry.computeTangents();
+
+        orcMaterial = new THREE.MeshStandardMaterial({
+          map: orcTextures.diffuse || null,
+          normalMap: orcTextures.normal || null,
+          normalScale: new THREE.Vector2(1.0, 1.0),
+          roughnessMap: orcTextures.pbr || orcTextures.roughness || null,
+          roughness: 1.0,
+          metalnessMap: orcTextures.pbr || orcTextures.metallic || null,
+          metalness: 1.0,
+          aoMap: orcTextures.pbr || null,
+          aoMapIntensity: 1.0,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0.0
+        });
+
+        orcMesh = new THREE.Mesh(indexedGeometry, orcMaterial);
+        orcMesh.castShadow = true;
+        orcMesh.receiveShadow = true;
+        orcMesh.scale.set(0.95, 0.95, 0.95);
+        orcMesh.position.set(0.25, groundY, 0);
+        orcMesh.rotation.y = -0.06;
+        orcMesh.layers.set(0);
+
+        modelsGroup.add(orcMesh);
+
+        updateCharProgress('orc', { percent: 100, stage: 'Ready', loaded: true });
+      } catch (err) {
+        console.error('Orc load error:', err);
+        updateCharProgress('orc', { percent: 0, stage: 'Error', loaded: false, error: err.message });
+      }
+    };
+
+    // 3. Load New Orc (90MB GLB + 40MB textures)
+    const loadOrc2 = async () => {
+      try {
+        updateCharProgress('orc2', { stage: 'Fetching textures...', percent: 5 });
+        let texLoaded = 0;
+        const totalTex = 6;
+        let meshRatio = 0;
+
+        const reportProgress = (stage) => {
+          const texRatio = texLoaded / totalTex;
+          const p = Math.min(99, Math.round(texRatio * 35 + meshRatio * 65));
+          updateCharProgress('orc2', { percent: p, stage: stage || `Loading ${p}%` });
+        };
+
+        const onTex = (tex) => {
+          texLoaded++;
+          reportProgress(`Textures ${texLoaded}/${totalTex}`);
+          return tex;
+        };
+
+        const texPromises = Promise.all([
+          loadTex(assetPath('asset_orc_2/texture_diffuse.png'), true, false).then(onTex),
+          loadTex(assetPath('asset_orc_2/texture_normal.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_orc_2/texture_roughness.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_orc_2/texture_metallic.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_orc_2/texture_pbr.png'), false, false).then(onTex),
+          loadTex(assetPath('asset_orc_2/shaded.png'), true, false).then(onTex)
+        ]);
+
+        const meshPromise = new Promise((resolve, reject) => {
           gltfLoader.load(
             assetPath('asset_orc_2/base_basic_pbr.glb'),
             (gltf) => {
+              let mesh = null;
               gltf.scene.traverse((child) => {
-                if (child.isMesh && !orc2Mesh) {
-                  orc2Mesh = child;
+                if (child.isMesh && !mesh) {
+                  mesh = child;
                   child.castShadow = true;
                   child.receiveShadow = true;
                 }
               });
-
-              if (!orc2Mesh) {
-                reject(new Error('Mesh not found in asset_orc_2/base_basic_pbr.glb'));
+              if (!mesh) {
+                reject(new Error('Mesh not found in base_basic_pbr.glb'));
                 return;
               }
-
-              if (orc2Mesh.geometry) {
-                if (!orc2Mesh.geometry.attributes.uv2 && orc2Mesh.geometry.attributes.uv) {
-                  orc2Mesh.geometry.setAttribute('uv2', orc2Mesh.geometry.attributes.uv);
-                }
-                if (!orc2Mesh.geometry.attributes.tangent) {
-                  try {
-                    orc2Mesh.geometry.computeTangents();
-                  } catch (e) {
-                    console.warn('Orc2 tangent computation skipped:', e);
-                  }
-                }
-              }
-
-              orc2Material = new THREE.MeshStandardMaterial({
-                map: orc2Textures.diffuse || null,
-                normalMap: orc2Textures.normal || null,
-                normalScale: new THREE.Vector2(1.0, 1.0),
-                roughnessMap: orc2Textures.pbr || orc2Textures.roughness || null,
-                roughness: 1.0,
-                metalnessMap: orc2Textures.pbr || orc2Textures.metallic || null,
-                metalness: 1.0,
-                aoMap: orc2Textures.pbr || null,
-                aoMapIntensity: 1.0,
-                emissive: new THREE.Color(0x000000),
-                emissiveIntensity: 0.0
-              });
-              orc2Mesh.material = orc2Material;
-
-              // Place next to the old orc at x = 2.15 (~1.80m height, identical scale & ground level as Old Orc)
-              orc2Mesh.scale.set(0.95, 0.95, 0.95);
-              orc2Mesh.position.set(2.15, groundY, 0);
-              orc2Mesh.rotation.y = -0.20;
-              orc2Mesh.layers.set(0);
-
-              modelsGroup.add(orc2Mesh);
-              resolve();
+              meshRatio = 1.0;
+              reportProgress('Configuring 3D model...');
+              resolve(mesh);
             },
-            undefined,
+            (xhr) => {
+              if (xhr.lengthComputable && xhr.total > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / xhr.total);
+              } else if (xhr.loaded > 0) {
+                meshRatio = Math.min(0.99, xhr.loaded / 94000000);
+              }
+              reportProgress(`Mesh ${Math.round(meshRatio * 100)}%`);
+            },
             (err) => reject(err)
           );
         });
 
-        // Load all 3 models concurrently for immediate showcase display
-        await Promise.all([loadDemonModel, loadOrcModel, loadOrc2Model]);
+        const [textures, mesh] = await Promise.all([texPromises, meshPromise]);
+        const [o2Diffuse, o2Normal, o2Roughness, o2Metallic, o2Pbr, o2Shaded] = textures;
+
+        orc2Textures.diffuse = o2Diffuse;
+        orc2Textures.normal = o2Normal;
+        orc2Textures.roughness = o2Roughness;
+        orc2Textures.metallic = o2Metallic;
+        orc2Textures.pbr = o2Pbr;
+        orc2Textures.shaded = o2Shaded;
+
+        if (mesh.geometry) {
+          if (!mesh.geometry.attributes.uv2 && mesh.geometry.attributes.uv) {
+            mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv);
+          }
+          if (!mesh.geometry.attributes.tangent) {
+            try {
+              mesh.geometry.computeTangents();
+            } catch (e) {
+              console.warn('Orc2 tangent computation skipped:', e);
+            }
+          }
+        }
+
+        orc2Material = new THREE.MeshStandardMaterial({
+          map: orc2Textures.diffuse || null,
+          normalMap: orc2Textures.normal || null,
+          normalScale: new THREE.Vector2(1.0, 1.0),
+          roughnessMap: orc2Textures.pbr || orc2Textures.roughness || null,
+          roughness: 1.0,
+          metalnessMap: orc2Textures.pbr || orc2Textures.metallic || null,
+          metalness: 1.0,
+          aoMap: orc2Textures.pbr || null,
+          aoMapIntensity: 1.0,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0.0
+        });
+        mesh.material = orc2Material;
+        mesh.scale.set(0.95, 0.95, 0.95);
+        mesh.position.set(2.15, groundY, 0);
+        mesh.rotation.y = -0.20;
+        mesh.layers.set(0);
+
+        orc2Mesh = mesh;
+        modelsGroup.add(orc2Mesh);
+
+        updateCharProgress('orc2', { percent: 100, stage: 'Ready', loaded: true });
+      } catch (err) {
+        console.error('Orc2 load error:', err);
+        updateCharProgress('orc2', { percent: 0, stage: 'Error', loaded: false, error: err.message });
+      }
+    };
+
+    const loadAllAssets = async () => {
+      try {
+        await Promise.allSettled([loadDemon(), loadOrc(), loadOrc2()]);
       } catch (err) {
         console.error('Asset load error:', err);
         setErrorMsg(err.message);
@@ -878,6 +996,9 @@ export default function DemonCanvas({
           cursor: 'grab'
         }}
       />
+
+      {/* Real-time Per-Character Loading HUD */}
+      <CharacterLoadingHUD characterProgress={characterProgress} />
 
 
       {/* Error Message */}
