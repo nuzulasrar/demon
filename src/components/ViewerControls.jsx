@@ -85,7 +85,7 @@ export default function ViewerControls({
               <span className="viewer-title-sub">3D Showcase</span>
             </h1>
             <p className="viewer-subtitle">
-              asset_demon_only (Demon) • asset_orc (Old Orc) • asset_orc_2 (New Orc) • 4K PBR
+              asset_demon_head (Demon Head) • asset_orc (Old Orc) • asset_orc_2 (New Orc) • 4K PBR
             </p>
           </div>
         </div>

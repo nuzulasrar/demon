@@ -1,0 +1,14 @@
+{
+  "file": "/Users/nuzul/Desktop/Demon_Head_Reference/export/Demon_Head.glb",
+  "size_bytes": 56720904,
+  "triangles": 1000000,
+  "embedded_images": 4,
+  "materials": 1,
+  "extensions": [
+    "KHR_materials_emissive_strength",
+    "KHR_materials_specular",
+    "KHR_materials_ior"
+  ],
+  "reimport": "passed",
+  "preview": "/Users/nuzul/Desktop/Demon_Head_Reference/export/Demon_Head_export_preview.png"
+}

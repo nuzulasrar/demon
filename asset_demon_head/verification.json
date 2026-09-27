@@ -1,0 +1,44 @@
+{
+  "blend": "/Users/nuzul/Desktop/Demon_Head_Reference/Demon_Head.blend",
+  "engine": "CYCLES",
+  "camera": "CAM 01 \u2022 reference front",
+  "triangles": 1000000,
+  "packed_images": [
+    {
+      "name": "REFERENCE \u2022 original supplied image",
+      "size": [
+        2816,
+        1536
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_diffuse",
+      "size": [
+        2048,
+        2048
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_metallic-texture_roughness",
+      "size": [
+        2048,
+        2048
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_normal",
+      "size": [
+        2048,
+        2048
+      ],
+      "packed": true
+    }
+  ],
+  "renders": {
+    "demon_head_front.png": 3673677,
+    "demon_head_three_quarter.png": 3680147
+  }
+}
