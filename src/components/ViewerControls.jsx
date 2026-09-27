@@ -11,9 +11,7 @@ import {
   ShieldAlert,
   Swords,
   Play,
-  Pause,
-  Volume2,
-  VolumeX
+  Pause
 } from 'lucide-react';
 
 export default function ViewerControls({
@@ -37,9 +35,7 @@ export default function ViewerControls({
   animSpeed,
   setAnimSpeed,
   onResetView,
-  onCaptureScreenshot,
-  isMuted,
-  onToggleAudio
+  onCaptureScreenshot
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -145,26 +141,6 @@ export default function ViewerControls({
             <span className="btn-label" style={{ fontSize: '0.8rem' }}>Snapshot</span>
           </button>
 
-          {/* Soundtrack Audio Toggle */}
-          <button
-            className={`glass-btn ${!isMuted ? 'active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleAudio();
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            title={!isMuted ? 'Mute Soundtrack' : 'Unmute Soundtrack'}
-            style={{
-              borderColor: !isMuted ? 'rgba(255, 77, 38, 0.6)' : undefined,
-              background: !isMuted ? 'rgba(255, 77, 38, 0.15)' : undefined
-            }}
-          >
-            {!isMuted ? <Volume2 size={15} color="#ff4d26" /> : <VolumeX size={15} color="var(--text-muted)" />}
-            <span className="btn-label" style={{ fontSize: '0.8rem', color: !isMuted ? '#ff8c42' : 'var(--text-muted)' }}>
-              {!isMuted ? 'Soundtrack' : 'Muted'}
-            </span>
-          </button>
 
           {/* Fullscreen */}
           <button

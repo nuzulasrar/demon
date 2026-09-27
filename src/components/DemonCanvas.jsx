@@ -4,7 +4,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Volume2 } from 'lucide-react';
 
 const BASE = import.meta.env.BASE_URL || '/';
 const assetPath = (path) => `${BASE}${path.replace(/^\//, '')}`;
@@ -21,9 +20,7 @@ export default function DemonCanvas({
   animSpeed = 1.0,
   onFpsUpdate,
   canvasRefCallback,
-  onResetViewCallback,
-  onLoadComplete,
-  onUserEnter
+  onResetViewCallback
 }) {
   const mountRef = useRef(null);
   const stateRef = useRef({
@@ -38,11 +35,7 @@ export default function DemonCanvas({
     animSpeed
   });
 
-  const [loading, setLoading] = useState(true);
-  const [loadStage, setLoadStage] = useState('Initializing scene...');
-  const [loadProgress, setLoadProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [readyToEnter, setReadyToEnter] = useState(false);
 
   // Sync state ref
   useEffect(() => {
@@ -162,13 +155,13 @@ export default function DemonCanvas({
       });
     }
 
-    // Lights (Layer 0 for Orcs: softened slightly to reduce glare and brightness)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.48);
+    // Lights (Reverted to exact baseline from commits >5 hours ago: d209d57)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
     ambientLight.layers.set(0);
     scene.add(ambientLight);
 
-    // Warm key light (right side, focusing on Old Orc & New Orc - softened from 2.4 to 1.85)
-    const keyLight = new THREE.DirectionalLight(0xfff6ed, 1.85);
+    // Warm key light (right side, focusing on Old Orc & New Orc)
+    const keyLight = new THREE.DirectionalLight(0xfff6ed, 2.4);
     keyLight.position.set(4, 5, 4);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
@@ -183,20 +176,20 @@ export default function DemonCanvas({
     keyLight.layers.set(0);
     scene.add(keyLight);
 
-    // Cool fill light (softened from 1.3 to 1.05)
-    const fillLight = new THREE.DirectionalLight(0x88a5cc, 1.05);
+    // Cool fill light (original cool tint & intensity from d209d57)
+    const fillLight = new THREE.DirectionalLight(0x88a5cc, 1.3);
     fillLight.position.set(-4, 3, 3);
     fillLight.layers.set(0);
     scene.add(fillLight);
 
-    // Rim light from behind (softened from 1.8 to 1.45)
-    const rimLight = new THREE.DirectionalLight(0xff9944, 1.45);
+    // Rim light from behind (original from d209d57)
+    const rimLight = new THREE.DirectionalLight(0xff9944, 1.8);
     rimLight.position.set(0, 4, -4);
     rimLight.layers.set(0);
     scene.add(rimLight);
 
-    // Secondary cool rim light (softened from 1.2 to 0.95)
-    const coolRimLight = new THREE.DirectionalLight(0x44aaff, 0.95);
+    // Secondary cool rim light (original from d209d57)
+    const coolRimLight = new THREE.DirectionalLight(0x44aaff, 1.2);
     coolRimLight.position.set(3, 3, -3);
     coolRimLight.layers.set(0);
     scene.add(coolRimLight);
@@ -217,8 +210,8 @@ export default function DemonCanvas({
     demonBounceLight.layers.set(1);
     scene.add(demonBounceLight);
 
-    // Demon Ambient Light lift (Layer 1 only: 0.48 + 0.37 = 0.85 total ambient for Demon)
-    const demonAmbientLight = new THREE.AmbientLight(0xffffff, 0.37);
+    // Demon Ambient Light lift (Layer 1 only: 0.65 + 0.20 = 0.85 total ambient for Demon Head)
+    const demonAmbientLight = new THREE.AmbientLight(0xffffff, 0.20);
     demonAmbientLight.layers.set(1);
     scene.add(demonAmbientLight);
 
@@ -274,9 +267,6 @@ export default function DemonCanvas({
 
     const loadAllAssets = async () => {
       try {
-        setLoadStage('Loading textures (Demon Head, Old Orc & New Orc)...');
-        setLoadProgress(15);
-
         // Load Demon Head textures (from asset_demon_head/export, GLTF convention: flipY = false)
         const demonTexPromise = Promise.all([
           loadTex(assetPath('asset_demon_head/export/Demon_BaseColor.png'), true, false),
@@ -334,9 +324,6 @@ export default function DemonCanvas({
         orc2Textures.pbr = o2Pbr;
         orc2Textures.shaded = o2Shaded;
 
-        setLoadStage('Decoding Demon Head 3D model (asset_demon_head)...');
-        setLoadProgress(35);
-
         const objLoader = new OBJLoader();
         const gltfLoader = new GLTFLoader();
 
@@ -393,20 +380,10 @@ export default function DemonCanvas({
               modelsGroup.add(demonMesh);
               resolve();
             },
-            (xhr) => {
-              if (xhr.lengthComputable) {
-                const percent = Math.round((xhr.loaded / xhr.total) * 20);
-                setLoadProgress(35 + percent);
-              }
-            },
+            undefined,
             (err) => reject(err)
           );
         });
-
-        await loadDemonModel;
-
-        setLoadStage('Decoding Old Orc 3D mesh (asset_orc)...');
-        setLoadProgress(60);
 
         // Load Old Orc OBJ model
         const loadOrcModel = new Promise((resolve, reject) => {
@@ -464,11 +441,6 @@ export default function DemonCanvas({
           );
         });
 
-        await loadOrcModel;
-
-        setLoadStage('Loading New Orc 3D character (asset_orc_2)...');
-        setLoadProgress(80);
-
         // Load New Orc (asset_orc_2) - GLB
         const loadOrc2Model = new Promise((resolve, reject) => {
           gltfLoader.load(
@@ -524,39 +496,16 @@ export default function DemonCanvas({
               modelsGroup.add(orc2Mesh);
               resolve();
             },
-            (xhr) => {
-              if (xhr.lengthComputable) {
-                const percent = Math.round((xhr.loaded / xhr.total) * 18);
-                setLoadProgress(80 + percent);
-              }
-            },
+            undefined,
             (err) => reject(err)
           );
         });
 
-        await loadOrc2Model;
-
-        setLoadProgress(100);
-        setLoadStage('Ready!');
-
-        if (onLoadComplete) {
-          onLoadComplete(
-            () => {
-              // Autoplay succeeded or already active
-              setLoading(false);
-            },
-            () => {
-              // Autoplay blocked by browser policy without prior user gesture
-              setReadyToEnter(true);
-            }
-          );
-        } else {
-          setLoading(false);
-        }
+        // Load all 3 models concurrently for immediate showcase display
+        await Promise.all([loadDemonModel, loadOrcModel, loadOrc2Model]);
       } catch (err) {
         console.error('Asset load error:', err);
         setErrorMsg(err.message);
-        setLoading(false);
       }
     };
 
@@ -731,15 +680,15 @@ export default function DemonCanvas({
           ? 1.0 + 0.03 * Math.sin(t * 7.4) + 0.015 * Math.cos(t * 11.2)
           : 1.0;
 
-        ambientLight.intensity = 0.48 * lightMult;
-        keyLight.intensity = 1.85 * lightMult * flicker;
-        fillLight.intensity = 1.05 * lightMult;
-        rimLight.intensity = 1.45 * lightMult * flicker;
-        coolRimLight.intensity = 0.95 * lightMult;
+        ambientLight.intensity = 0.65 * lightMult;
+        keyLight.intensity = 2.4 * lightMult * flicker;
+        fillLight.intensity = 1.3 * lightMult;
+        rimLight.intensity = 1.8 * lightMult * flicker;
+        coolRimLight.intensity = 1.2 * lightMult;
 
         demonKeyLight.intensity = 2.2 * lightMult * flicker;
         demonBounceLight.intensity = 0.85 * lightMult;
-        demonAmbientLight.intensity = 0.37 * lightMult;
+        demonAmbientLight.intensity = 0.20 * lightMult;
 
         // Handle flipY dynamically: Old Orc is OBJ (flipY=true by default), Demon Head & Orc 2 are GLTF (flipY=false by default)
         const isFlipped = stateRef.current.flipTextureY;
@@ -930,184 +879,6 @@ export default function DemonCanvas({
         }}
       />
 
-      {/* Loading Screen */}
-      {loading && (
-        <div
-          onClick={() => {
-            if (readyToEnter) {
-              if (onUserEnter) onUserEnter();
-              setLoading(false);
-            }
-          }}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'radial-gradient(ellipse at center, rgba(22, 16, 28, 0.97) 0%, rgba(8, 6, 8, 0.99) 100%)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            zIndex: 100,
-            cursor: readyToEnter ? 'pointer' : 'default',
-            transition: 'all 0.4s ease',
-            userSelect: 'none'
-          }}
-        >
-          {readyToEnter ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-                padding: '24px'
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '0.85rem',
-                  letterSpacing: '0.25em',
-                  textTransform: 'uppercase',
-                  color: '#ff8c42',
-                  fontWeight: 600,
-                  marginBottom: '10px'
-                }}
-              >
-                Initial Load Complete
-              </div>
-              <div
-                style={{
-                  fontFamily: 'var(--font-serif)',
-                  fontSize: 'clamp(1.6rem, 3.8vw, 2.4rem)',
-                  fontWeight: 700,
-                  color: '#f5f3f4',
-                  letterSpacing: '0.06em',
-                  marginBottom: '26px',
-                  textShadow: '0 0 28px rgba(255, 77, 38, 0.45)'
-                }}
-              >
-                Demon & Orcs 3D Showcase
-              </div>
-
-              <button
-                className="glass-btn active"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onUserEnter) onUserEnter();
-                  setLoading(false);
-                }}
-                style={{
-                  padding: '14px clamp(20px, 6vw, 42px)',
-                  maxWidth: 'min(360px, calc(100vw - 36px))',
-                  boxSizing: 'border-box',
-                  fontSize: 'clamp(0.9rem, 3.8vw, 1.05rem)',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  borderRadius: '32px',
-                  background: 'linear-gradient(135deg, rgba(255, 77, 38, 0.4), rgba(255, 140, 66, 0.3))',
-                  border: '1px solid rgba(255, 140, 66, 0.8)',
-                  boxShadow: '0 0 35px rgba(255, 77, 38, 0.55)',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '10px',
-                  color: '#fff',
-                  transition: 'all 0.25s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                  e.currentTarget.style.boxShadow = '0 0 50px rgba(255, 77, 38, 0.8)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = '0 0 35px rgba(255, 77, 38, 0.55)';
-                }}
-              >
-                <Volume2 size={22} color="#ff8c42" />
-                <span>ENTER 3D SHOWCASE</span>
-              </button>
-
-              <div
-                style={{
-                  marginTop: '20px',
-                  fontSize: '0.82rem',
-                  color: '#9a94a0',
-                  letterSpacing: '0.04em'
-                }}
-              >
-                Soundtrack will play on loop • Click anywhere to enter
-              </div>
-            </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  width: '54px',
-                  height: '54px',
-                  border: '3px solid rgba(255, 255, 255, 0.1)',
-                  borderTopColor: '#ff4d26',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  marginBottom: '20px'
-                }}
-              />
-              <div
-                style={{
-                  fontSize: '1.15rem',
-                  fontWeight: 700,
-                  color: '#f5f3f4',
-                  letterSpacing: '0.04em',
-                  marginBottom: '8px'
-                }}
-              >
-                Loading Demon & Orcs 3D Models...
-              </div>
-              <div
-                style={{
-                  fontSize: '0.82rem',
-                  color: '#9a94a0',
-                  marginBottom: '20px',
-                  textAlign: 'center',
-                  maxWidth: '460px'
-                }}
-              >
-                {loadStage}
-              </div>
-              <div
-                style={{
-                  width: '280px',
-                  height: '5px',
-                  background: 'rgba(255,255,255,0.08)',
-                  borderRadius: '3px',
-                  overflow: 'hidden'
-                }}
-              >
-                <div
-                  style={{
-                    width: `${loadProgress}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #ff4d26, #ff8c42)',
-                    transition: 'width 0.25s ease'
-                  }}
-                />
-              </div>
-              <span
-                style={{
-                  marginTop: '10px',
-                  fontSize: '0.8rem',
-                  color: '#777',
-                  fontFamily: 'monospace'
-                }}
-              >
-                {loadProgress}%
-              </span>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Error Message */}
       {errorMsg && (
