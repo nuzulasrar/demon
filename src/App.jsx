@@ -9,7 +9,7 @@ export default function App() {
   const [emissiveIntensity, setEmissiveIntensity] = useState(1.0);
   const [lightIntensity, setLightIntensity] = useState(1.0);
   const [flipTextureY, setFlipTextureY] = useState(false);
-  const [focusTarget, setFocusTarget] = useState('both');
+  const [focusTarget, setFocusTarget] = useState('all');
   const [isAnimating, setIsAnimating] = useState(true);
   const [animSpeed, setAnimSpeed] = useState(1.0);
   const [fps, setFps] = useState(60);
@@ -121,7 +121,7 @@ export default function App() {
     try {
       const dataUrl = canvasElementRef.current.toDataURL('image/png');
       const link = document.createElement('a');
-      link.download = `demon-orc-showcase-${Date.now()}.png`;
+      link.download = `demon-orcs-showcase-${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {

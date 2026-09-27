@@ -26,3 +26,4 @@ dist-ssr
 # Large raw models (exceeds GitHub file recommendations)
 asset_demon/base.obj
 asset_demon/demon.glb
+asset_orc_2/base.obj

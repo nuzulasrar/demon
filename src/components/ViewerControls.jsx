@@ -9,6 +9,7 @@ import {
   Users,
   Flame,
   ShieldAlert,
+  Swords,
   Play,
   Pause,
   Volume2,
@@ -62,9 +63,10 @@ export default function ViewerControls({
   ];
 
   const FOCUS_OPTIONS = [
-    { id: 'both', label: 'Both', icon: Users },
+    { id: 'all', label: 'All', icon: Users },
     { id: 'demon', label: 'Demon', icon: Flame },
-    { id: 'orc', label: 'Orc', icon: ShieldAlert }
+    { id: 'orc', label: 'Old Orc', icon: ShieldAlert },
+    { id: 'orc2', label: 'New Orc', icon: Swords }
   ];
 
   const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -79,11 +81,11 @@ export default function ViewerControls({
             <h1 className="viewer-title">
               <span style={{ color: '#ff4d26' }}>Demon</span>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>&</span>
-              <span style={{ color: '#00e5ff' }}>Orc</span>
+              <span style={{ color: '#00e5ff' }}>Orcs</span>
               <span className="viewer-title-sub">3D Showcase</span>
             </h1>
             <p className="viewer-subtitle">
-              demon_glb (Rigged Demon) • asset_orc • 4K PBR • Seamless Motion
+              asset_demon_only (Demon) • asset_orc (Old Orc) • asset_orc_2 (New Orc) • 4K PBR
             </p>
           </div>
         </div>
@@ -92,7 +94,7 @@ export default function ViewerControls({
         <div className="viewer-focus-box glass-panel">
           {FOCUS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
-            const isSelected = focusTarget === opt.id;
+            const isSelected = focusTarget === opt.id || (opt.id === 'all' && focusTarget === 'both');
             return (
               <button
                 key={opt.id}

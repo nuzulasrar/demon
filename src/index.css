@@ -383,10 +383,12 @@ button:focus-visible {
   }
 
   .viewer-focus-box .glass-btn {
-    padding: 6px 12px;
-    font-size: 0.75rem;
+    padding: 6px 8px;
+    font-size: 0.74rem;
     flex: 1;
     justify-content: center;
+    gap: 4px;
+    white-space: nowrap;
   }
 
   .viewer-render-modes .mode-btn {

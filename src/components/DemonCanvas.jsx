@@ -110,35 +110,42 @@ export default function DemonCanvas({
 
     const getFocusConfig = (currentAspect) => {
       const isPortrait = currentAspect < 1.0;
-      // In portrait on smartphones, distance scales so both Demon and Orc fit horizontally
-      const bothZ = isPortrait ? Math.max(5.4, 3.8 / Math.max(currentAspect, 0.45)) : 4.2;
+      // In portrait on smartphones, distance scales so Demon, Old Orc, and New Orc fit horizontally
+      const allZ = isPortrait ? Math.max(6.0, 4.5 / Math.max(currentAspect, 0.45)) : 4.6;
+      const allConfig = {
+        target: new THREE.Vector3(0.2, 0.25, 0),
+        camera: new THREE.Vector3(0.2, 0.5, Math.min(allZ, 8.2))
+      };
       return {
-        both: {
-          target: new THREE.Vector3(0, 0.25, 0),
-          camera: new THREE.Vector3(0, 0.45, Math.min(bothZ, 7.2))
-        },
+        all: allConfig,
+        both: allConfig,
         demon: {
-          target: new THREE.Vector3(-1.35, 0.35, 0),
-          camera: new THREE.Vector3(-1.35, 0.50, isPortrait ? 3.4 : 2.8)
+          target: new THREE.Vector3(-1.75, 0.35, 0),
+          camera: new THREE.Vector3(-1.75, 0.50, isPortrait ? 3.4 : 2.8)
         },
         orc: {
-          target: new THREE.Vector3(1.15, 0.20, 0),
-          camera: new THREE.Vector3(1.15, 0.35, isPortrait ? 3.0 : 2.5)
+          target: new THREE.Vector3(0.25, 0.20, 0),
+          camera: new THREE.Vector3(0.25, 0.35, isPortrait ? 3.0 : 2.5)
+        },
+        orc2: {
+          target: new THREE.Vector3(2.15, 0.20, 0),
+          camera: new THREE.Vector3(2.15, 0.35, isPortrait ? 3.0 : 2.5)
         }
       };
     };
 
     const initialConfig = getFocusConfig(width / height);
-    camera.position.copy(initialConfig.both.camera);
+    const startTarget = initialConfig[stateRef.current.focusTarget] || initialConfig.all;
+    camera.position.copy(startTarget.camera);
 
-    let targetCamPos = new THREE.Vector3().copy(initialConfig.both.camera);
-    let targetLookAt = new THREE.Vector3().copy(initialConfig.both.target);
+    let targetCamPos = new THREE.Vector3().copy(startTarget.camera);
+    let targetLookAt = new THREE.Vector3().copy(startTarget.target);
     let isFocusAnimating = false;
     let prevFocusTarget = stateRef.current.focusTarget;
 
     if (onResetViewCallback) {
       onResetViewCallback(() => {
-        const config = getFocusConfig(camera.aspect)[stateRef.current.focusTarget] || getFocusConfig(camera.aspect).both;
+        const config = getFocusConfig(camera.aspect)[stateRef.current.focusTarget] || getFocusConfig(camera.aspect).all;
         targetCamPos.copy(config.camera);
         targetLookAt.copy(config.target);
         isFocusAnimating = true;
@@ -157,10 +164,10 @@ export default function DemonCanvas({
     keyLight.shadow.mapSize.height = 2048;
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 15;
-    keyLight.shadow.camera.left = -3;
-    keyLight.shadow.camera.right = 3;
-    keyLight.shadow.camera.top = 3;
-    keyLight.shadow.camera.bottom = -3;
+    keyLight.shadow.camera.left = -4.5;
+    keyLight.shadow.camera.right = 4.5;
+    keyLight.shadow.camera.top = 3.5;
+    keyLight.shadow.camera.bottom = -3.5;
     keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
@@ -181,12 +188,12 @@ export default function DemonCanvas({
 
     // Ground Grid & Floor
     const groundY = -0.8;
-    const gridHelper = new THREE.GridHelper(10, 30, 0x444455, 0x1f1f28);
+    const gridHelper = new THREE.GridHelper(14, 35, 0x444455, 0x1f1f28);
     gridHelper.position.y = groundY;
     scene.add(gridHelper);
 
     // Soft shadow receiver plane
-    const floorGeo = new THREE.PlaneGeometry(12, 12);
+    const floorGeo = new THREE.PlaneGeometry(16, 12);
     const floorMat = new THREE.ShadowMaterial({ opacity: 0.4 });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
     floorMesh.rotation.x = -Math.PI / 2;
@@ -203,6 +210,7 @@ export default function DemonCanvas({
     const textureLoader = new THREE.TextureLoader();
     const demonTextures = {};
     const orcTextures = {};
+    const orc2Textures = {};
 
     const loadTex = (url, isColor = false, flipY = false) => {
       return new Promise((resolve) => {
@@ -224,29 +232,27 @@ export default function DemonCanvas({
 
     let demonMesh = null;
     let demonMaterial = null;
-    let demonScene = null;
-    let mixerDemon = null;
-    let actionDemon = null;
-    const origDemonTextures = {};
     let orcMesh = null;
     let orcMaterial = null;
+    let orc2Mesh = null;
+    let orc2Material = null;
 
     const loadAllAssets = async () => {
       try {
-        setLoadStage('Loading Demon and Orc textures...');
+        setLoadStage('Loading textures (Demon, Old Orc & New Orc)...');
         setLoadProgress(15);
 
-        // Load Demon textures (GLTF convention: flipY = false)
+        // Load Demon textures (from asset_demon_only, OBJ convention: flipY = true)
         const demonTexPromise = Promise.all([
-          loadTex(assetPath('asset_demon/texture_diffuse.png'), true, false),
-          loadTex(assetPath('asset_demon/texture_normal.png'), false, false),
-          loadTex(assetPath('asset_demon/texture_emissive.png'), true, false),
-          loadTex(assetPath('asset_demon/texture_roughness.png'), false, false),
-          loadTex(assetPath('asset_demon/texture_metallic.png'), false, false),
-          loadTex(assetPath('asset_demon/shaded.png'), true, false)
+          loadTex(assetPath('asset_demon_only/texture_diffuse.png'), true, true),
+          loadTex(assetPath('asset_demon_only/texture_normal.png'), false, true),
+          loadTex(assetPath('asset_demon_only/texture_roughness.png'), false, true),
+          loadTex(assetPath('asset_demon_only/texture_metallic.png'), false, true),
+          loadTex(assetPath('asset_demon_only/texture_pbr.png'), false, true),
+          loadTex(assetPath('asset_demon_only/shaded.png'), true, true)
         ]);
 
-        // Load Orc textures (OBJ convention: flipY = true)
+        // Load Old Orc textures (OBJ convention: flipY = true)
         const orcTexPromise = Promise.all([
           loadTex(assetPath('asset_orc/texture_diffuse.png'), true, true),
           loadTex(assetPath('asset_orc/texture_normal.png'), false, true),
@@ -256,16 +262,27 @@ export default function DemonCanvas({
           loadTex(assetPath('asset_orc/shaded.png'), true, true)
         ]);
 
+        // Load New Orc (asset_orc_2) textures (GLTF convention: flipY = false)
+        const orc2TexPromise = Promise.all([
+          loadTex(assetPath('asset_orc_2/texture_diffuse.png'), true, false),
+          loadTex(assetPath('asset_orc_2/texture_normal.png'), false, false),
+          loadTex(assetPath('asset_orc_2/texture_roughness.png'), false, false),
+          loadTex(assetPath('asset_orc_2/texture_metallic.png'), false, false),
+          loadTex(assetPath('asset_orc_2/texture_pbr.png'), false, false),
+          loadTex(assetPath('asset_orc_2/shaded.png'), true, false)
+        ]);
+
         const [
-          [dDiffuse, dNormal, dEmissive, dRoughness, dMetallic, dShaded],
-          [oDiffuse, oNormal, oRoughness, oMetallic, oPbr, oShaded]
-        ] = await Promise.all([demonTexPromise, orcTexPromise]);
+          [dDiffuse, dNormal, dRoughness, dMetallic, dPbr, dShaded],
+          [oDiffuse, oNormal, oRoughness, oMetallic, oPbr, oShaded],
+          [o2Diffuse, o2Normal, o2Roughness, o2Metallic, o2Pbr, o2Shaded]
+        ] = await Promise.all([demonTexPromise, orcTexPromise, orc2TexPromise]);
 
         demonTextures.diffuse = dDiffuse;
         demonTextures.normal = dNormal;
-        demonTextures.emissive = dEmissive;
         demonTextures.roughness = dRoughness;
         demonTextures.metallic = dMetallic;
+        demonTextures.pbr = dPbr;
         demonTextures.shaded = dShaded;
 
         orcTextures.diffuse = oDiffuse;
@@ -275,75 +292,79 @@ export default function DemonCanvas({
         orcTextures.pbr = oPbr;
         orcTextures.shaded = oShaded;
 
-        setLoadStage('Loading animated Demon (Rigged 11-joint skeleton & 24s Idle)...');
-        setLoadProgress(45);
+        orc2Textures.diffuse = o2Diffuse;
+        orc2Textures.normal = o2Normal;
+        orc2Textures.roughness = o2Roughness;
+        orc2Textures.metallic = o2Metallic;
+        orc2Textures.pbr = o2Pbr;
+        orc2Textures.shaded = o2Shaded;
 
+        setLoadStage('Decoding Demon 3D mesh (asset_demon_only)...');
+        setLoadProgress(35);
+
+        const objLoader = new OBJLoader();
         const gltfLoader = new GLTFLoader();
-        const loadDemonModel = new Promise((resolve, reject) => {
-          gltfLoader.load(
-            assetPath('demon_glb/demon_animated.glb'),
-            (gltf) => {
-              demonScene = gltf.scene;
 
-              gltf.scene.traverse((child) => {
-                if ((child.isSkinnedMesh || child.isMesh) && !demonMesh) {
-                  demonMesh = child;
-                  child.castShadow = true;
-                  child.receiveShadow = true;
+        const loadDemonModel = new Promise((resolve, reject) => {
+          objLoader.load(
+            assetPath('asset_demon_only/base.obj'),
+            (obj) => {
+              let rawGeometry = null;
+              obj.traverse((child) => {
+                if (child.isMesh && !rawGeometry) {
+                  rawGeometry = child.geometry;
                 }
               });
 
-              if (!demonMesh) {
-                reject(new Error('SkinnedMesh not found in demon_animated.glb'));
+              if (!rawGeometry) {
+                reject(new Error('Geometry not found in asset_demon_only base.obj'));
                 return;
               }
 
-              demonMaterial = demonMesh.material;
-              if (demonMaterial) {
-                origDemonTextures.diffuse = demonMaterial.map || demonTextures.diffuse || null;
-                origDemonTextures.normal = demonMaterial.normalMap || demonTextures.normal || null;
-                origDemonTextures.roughness = demonMaterial.roughnessMap || demonTextures.roughness || null;
-                origDemonTextures.metallic = demonMaterial.metalnessMap || demonTextures.metallic || null;
-                origDemonTextures.emissive = demonMaterial.emissiveMap || demonTextures.emissive || null;
+              // Index vertices and preserve authentic Blender normals
+              const indexedGeometry = mergeVertices(rawGeometry);
+              // Setup uv2 for Ambient Occlusion
+              indexedGeometry.setAttribute('uv2', indexedGeometry.attributes.uv);
+              // Compute tangents for optimal normal map lighting
+              indexedGeometry.computeTangents();
 
-                demonMaterial.emissive = new THREE.Color(0xffffff);
-                demonMaterial.emissiveIntensity = 1.0;
-              }
+              demonMaterial = new THREE.MeshStandardMaterial({
+                map: demonTextures.diffuse || null,
+                normalMap: demonTextures.normal || null,
+                normalScale: new THREE.Vector2(1.0, 1.0),
+                roughnessMap: demonTextures.pbr || demonTextures.roughness || null,
+                roughness: 1.0,
+                metalnessMap: demonTextures.pbr || demonTextures.metallic || null,
+                metalness: 1.0,
+                aoMap: demonTextures.pbr || null,
+                aoMapIntensity: 1.0,
+                emissive: new THREE.Color(0x220500),
+                emissiveIntensity: 0.8
+              });
 
-              // Initialize AnimationMixer for Demon's 24s idle cycle
-              mixerDemon = new THREE.AnimationMixer(gltf.scene);
-              const clip = gltf.animations.find((c) => c.name === 'Demon_Idle') || gltf.animations[0];
-              if (clip) {
-                actionDemon = mixerDemon.clipAction(clip);
-                actionDemon.setLoop(THREE.LoopRepeat, Infinity);
-                actionDemon.play();
-              }
+              demonMesh = new THREE.Mesh(indexedGeometry, demonMaterial);
+              demonMesh.castShadow = true;
+              demonMesh.receiveShadow = true;
 
-              // Demon scaled by 2.4 (+20% height) for an imposing, towering presence
-              gltf.scene.scale.set(2.4, 2.4, 2.4);
-              gltf.scene.position.set(-1.35, groundY, 0);
-              gltf.scene.rotation.y = 0.12;
+              // Demon scaled by 2.25 (~2.48m height) for towering presence on the left
+              demonMesh.scale.set(2.25, 2.25, 2.25);
+              demonMesh.position.set(-1.75, groundY, 0);
+              demonMesh.rotation.y = 0.16;
 
-              modelsGroup.add(gltf.scene);
+              modelsGroup.add(demonMesh);
               resolve();
             },
-            (xhr) => {
-              if (xhr.lengthComputable) {
-                const percent = Math.round((xhr.loaded / xhr.total) * 30);
-                setLoadProgress(45 + percent);
-              }
-            },
+            undefined,
             (err) => reject(err)
           );
         });
 
         await loadDemonModel;
 
-        setLoadStage('Decoding Orc 3D mesh (OBJ & Tangents)...');
-        setLoadProgress(75);
+        setLoadStage('Decoding Old Orc 3D mesh (asset_orc)...');
+        setLoadProgress(60);
 
-        // Load Orc OBJ model
-        const objLoader = new OBJLoader();
+        // Load Old Orc OBJ model
         const loadOrcModel = new Promise((resolve, reject) => {
           objLoader.load(
             assetPath('asset_orc/base.obj'),
@@ -385,10 +406,10 @@ export default function DemonCanvas({
               orcMesh.castShadow = true;
               orcMesh.receiveShadow = true;
 
-              // Orc bounding box Y is [0.0, 1.897]. Scale 0.95 gives ~1.80m height
+              // Old Orc scaled ~1.80m height (positioned in center-right)
               orcMesh.scale.set(0.95, 0.95, 0.95);
-              orcMesh.position.set(1.15, groundY, 0);
-              orcMesh.rotation.y = -0.12;
+              orcMesh.position.set(0.25, groundY, 0);
+              orcMesh.rotation.y = -0.06;
 
               modelsGroup.add(orcMesh);
               resolve();
@@ -399,6 +420,75 @@ export default function DemonCanvas({
         });
 
         await loadOrcModel;
+
+        setLoadStage('Loading New Orc 3D character (asset_orc_2)...');
+        setLoadProgress(80);
+
+        // Load New Orc (asset_orc_2) - GLB
+        const loadOrc2Model = new Promise((resolve, reject) => {
+          gltfLoader.load(
+            assetPath('asset_orc_2/base_basic_pbr.glb'),
+            (gltf) => {
+              gltf.scene.traverse((child) => {
+                if (child.isMesh && !orc2Mesh) {
+                  orc2Mesh = child;
+                  child.castShadow = true;
+                  child.receiveShadow = true;
+                }
+              });
+
+              if (!orc2Mesh) {
+                reject(new Error('Mesh not found in asset_orc_2/base_basic_pbr.glb'));
+                return;
+              }
+
+              if (orc2Mesh.geometry) {
+                if (!orc2Mesh.geometry.attributes.uv2 && orc2Mesh.geometry.attributes.uv) {
+                  orc2Mesh.geometry.setAttribute('uv2', orc2Mesh.geometry.attributes.uv);
+                }
+                if (!orc2Mesh.geometry.attributes.tangent) {
+                  try {
+                    orc2Mesh.geometry.computeTangents();
+                  } catch (e) {
+                    console.warn('Orc2 tangent computation skipped:', e);
+                  }
+                }
+              }
+
+              orc2Material = new THREE.MeshStandardMaterial({
+                map: orc2Textures.diffuse || null,
+                normalMap: orc2Textures.normal || null,
+                normalScale: new THREE.Vector2(1.0, 1.0),
+                roughnessMap: orc2Textures.pbr || orc2Textures.roughness || null,
+                roughness: 1.0,
+                metalnessMap: orc2Textures.pbr || orc2Textures.metallic || null,
+                metalness: 1.0,
+                aoMap: orc2Textures.pbr || null,
+                aoMapIntensity: 1.0,
+                emissive: new THREE.Color(0x000000),
+                emissiveIntensity: 0.0
+              });
+              orc2Mesh.material = orc2Material;
+
+              // Place next to the old orc at x = 2.15 (~1.80m height, identical scale & ground level as Old Orc)
+              orc2Mesh.scale.set(0.95, 0.95, 0.95);
+              orc2Mesh.position.set(2.15, groundY, 0);
+              orc2Mesh.rotation.y = -0.20;
+
+              modelsGroup.add(orc2Mesh);
+              resolve();
+            },
+            (xhr) => {
+              if (xhr.lengthComputable) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 18);
+                setLoadProgress(80 + percent);
+              }
+            },
+            (err) => reject(err)
+          );
+        });
+
+        await loadOrc2Model;
 
         setLoadProgress(100);
         setLoadStage('Ready!');
@@ -470,7 +560,7 @@ export default function DemonCanvas({
         // Check focus changes
         if (stateRef.current.focusTarget !== prevFocusTarget) {
           prevFocusTarget = stateRef.current.focusTarget;
-          const config = getFocusConfig(camera.aspect)[prevFocusTarget] || getFocusConfig(camera.aspect).both;
+          const config = getFocusConfig(camera.aspect)[prevFocusTarget] || getFocusConfig(camera.aspect).all;
           targetCamPos.copy(config.camera);
           targetLookAt.copy(config.target);
           isFocusAnimating = true;
@@ -492,7 +582,7 @@ export default function DemonCanvas({
 
         controls.update();
 
-        // Auto rotation of both models around center
+        // Auto rotation of all models around center
         if (modelsGroup && stateRef.current.isAutoRotate) {
           modelsGroup.rotation.y += 0.006;
         }
@@ -503,19 +593,33 @@ export default function DemonCanvas({
         const t = ((now - startTime) * 0.001) * speed;
 
         if (isAnim) {
-          // --- 1. Demon Skeletal Animation ---
-          if (mixerDemon) {
-            mixerDemon.update(delta * speed);
+          // --- 1. Demon (asset_demon_only) Idle Animation ---
+          if (demonMesh) {
+            // Imposing breathing rhythm and subtle intimidation stance
+            const dBreath = Math.sin(t * 1.5);
+            const dBreathCos = Math.cos(t * 1.5);
+            const dSway = Math.sin(t * 0.7 + 0.5);
+
+            // Respiration chest expansion
+            const dScaleXZ = 2.25 * (1 + 0.012 * dBreath);
+            const dScaleY = 2.25 * (1 + 0.007 * dBreath);
+            demonMesh.scale.set(dScaleXZ, dScaleY, dScaleXZ);
+
+            // Grounded weight shift and menacing posture
+            demonMesh.position.y = groundY + 0.005 * (dBreath * 0.5 + 0.5);
+            demonMesh.rotation.y = 0.16 + 0.015 * dSway;
+            demonMesh.rotation.z = 0.01 * dSway;
+            demonMesh.rotation.x = 0.008 * dBreathCos;
+
+            // Magma pulse in sync with respiration
+            if (demonMaterial && stateRef.current.renderMode === 'pbr') {
+              const eBase = stateRef.current.emissiveIntensity;
+              const pulse = 0.7 + 0.4 * (0.5 + 0.5 * Math.sin(t * 1.5));
+              demonMaterial.emissiveIntensity = eBase * pulse;
+            }
           }
 
-          // Magma emissive pulse in sync with respiration
-          if (demonMaterial && stateRef.current.renderMode === 'pbr') {
-            const eBase = stateRef.current.emissiveIntensity;
-            const pulse = 0.8 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.6));
-            demonMaterial.emissiveIntensity = eBase * pulse;
-          }
-
-          // --- 2. Orc Idle Animation ---
+          // --- 2. Old Orc Idle Animation ---
           if (orcMesh) {
             // Independent breathing cycle and warrior weight shifting
             const oBreath = Math.sin(t * 2.0 + 1.4);
@@ -527,31 +631,51 @@ export default function DemonCanvas({
             const oScaleY = 0.95 * (1 + 0.008 * oBreath);
             orcMesh.scale.set(oScaleXZ, oScaleY, oScaleXZ);
 
-            // Grounded weight shift and forward battle posture
+            // Grounded weight shift and battle posture
             orcMesh.position.y = groundY + 0.006 * (oBreath * 0.5 + 0.5);
-            orcMesh.rotation.y = -0.12 + 0.02 * oSway;
+            orcMesh.rotation.y = -0.06 + 0.02 * oSway;
             orcMesh.rotation.z = -0.014 * oSway;
             orcMesh.rotation.x = 0.01 * oBreathCos;
           }
 
+          // --- 3. New Orc (asset_orc_2) Idle Animation ---
+          if (orc2Mesh) {
+            // Independent rhythm and shifted breathing phase
+            const o2Breath = Math.sin(t * 1.8 + 2.8);
+            const o2BreathCos = Math.cos(t * 1.8 + 2.8);
+            const o2Sway = Math.sin(t * 0.9 + 1.8);
+
+            // Deep chest expansion matching Old Orc
+            const o2ScaleXZ = 0.95 * (1 + 0.015 * o2Breath);
+            const o2ScaleY = 0.95 * (1 + 0.008 * o2Breath);
+            orc2Mesh.scale.set(o2ScaleXZ, o2ScaleY, o2ScaleXZ);
+
+            // Grounded weight shift and battle stance
+            orc2Mesh.position.y = groundY + 0.006 * (o2Breath * 0.5 + 0.5);
+            orc2Mesh.rotation.y = -0.20 + 0.018 * o2Sway;
+            orc2Mesh.rotation.z = 0.012 * o2Sway;
+            orc2Mesh.rotation.x = 0.011 * o2BreathCos;
+          }
 
         } else {
           // Paused pose
-          if (mixerDemon) {
-            mixerDemon.update(0);
-          }
-          if (demonScene) {
-            demonScene.scale.set(2.4, 2.4, 2.4);
-            demonScene.position.set(-1.35, groundY, 0);
-            demonScene.rotation.set(0, 0.12, 0);
+          if (demonMesh) {
+            demonMesh.scale.set(2.25, 2.25, 2.25);
+            demonMesh.position.set(-1.75, groundY, 0);
+            demonMesh.rotation.set(0, 0.16, 0);
             if (demonMaterial && stateRef.current.renderMode === 'pbr') {
               demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity;
             }
           }
           if (orcMesh) {
             orcMesh.scale.set(0.95, 0.95, 0.95);
-            orcMesh.position.set(1.15, groundY, 0);
-            orcMesh.rotation.set(0, -0.12, 0);
+            orcMesh.position.set(0.25, groundY, 0);
+            orcMesh.rotation.set(0, -0.06, 0);
+          }
+          if (orc2Mesh) {
+            orc2Mesh.scale.set(0.95, 0.95, 0.95);
+            orc2Mesh.position.set(2.15, groundY, 0);
+            orc2Mesh.rotation.set(0, -0.20, 0);
           }
         }
 
@@ -567,21 +691,28 @@ export default function DemonCanvas({
         rimLight.intensity = 1.8 * lightMult * flicker;
         coolRimLight.intensity = 1.2 * lightMult;
 
-        // Handle flipY dynamically: Demon is false by default, Orc is true by default
+        // Handle flipY dynamically: Demon & Old Orc are OBJ (flipY=true by default), Orc 2 is GLTF (flipY=false by default)
         const isFlipped = stateRef.current.flipTextureY;
-        const demonTargetFlip = isFlipped ? true : false;
-        const orcTargetFlip = isFlipped ? false : true;
+        const objTargetFlip = isFlipped ? false : true;
+        const gltfTargetFlip = isFlipped ? true : false;
 
         Object.values(demonTextures).forEach((tex) => {
-          if (tex && tex.flipY !== demonTargetFlip) {
-            tex.flipY = demonTargetFlip;
+          if (tex && tex.flipY !== objTargetFlip) {
+            tex.flipY = objTargetFlip;
             tex.needsUpdate = true;
           }
         });
 
         Object.values(orcTextures).forEach((tex) => {
-          if (tex && tex.flipY !== orcTargetFlip) {
-            tex.flipY = orcTargetFlip;
+          if (tex && tex.flipY !== objTargetFlip) {
+            tex.flipY = objTargetFlip;
+            tex.needsUpdate = true;
+          }
+        });
+
+        Object.values(orc2Textures).forEach((tex) => {
+          if (tex && tex.flipY !== gltfTargetFlip) {
+            tex.flipY = gltfTargetFlip;
             tex.needsUpdate = true;
           }
         });
@@ -597,6 +728,7 @@ export default function DemonCanvas({
           prevWireframe = wire;
           if (demonMaterial) demonMaterial.needsUpdate = true;
           if (orcMaterial) orcMaterial.needsUpdate = true;
+          if (orc2Material) orc2Material.needsUpdate = true;
         }
 
         const updateMaterial = (material, textures, isDemon) => {
@@ -604,21 +736,28 @@ export default function DemonCanvas({
           material.wireframe = wire;
 
           if (mode === 'pbr') {
-            material.map = isDemon ? (origDemonTextures.diffuse || textures.diffuse) : (textures.diffuse || null);
-            material.normalMap = isDemon ? (origDemonTextures.normal || textures.normal) : (textures.normal || null);
+            material.map = textures.diffuse || null;
+            material.normalMap = textures.normal || null;
             material.normalScale.set(1, 1);
             if (isDemon) {
-              material.emissiveMap = origDemonTextures.emissive || textures.emissive || null;
-              material.emissive.set(0xffffff);
+              material.emissiveMap = textures.emissive || null;
+              material.emissive.set(0x220500);
               if (!isAnim) material.emissiveIntensity = eIntensity;
-              material.roughnessMap = origDemonTextures.roughness || textures.roughness || null;
-              material.metalnessMap = origDemonTextures.metallic || textures.metallic || null;
-              material.aoMap = null;
+              if (textures.pbr) {
+                material.roughnessMap = textures.pbr;
+                material.metalnessMap = textures.pbr;
+                material.aoMap = textures.pbr;
+                material.aoMapIntensity = 1.0;
+              } else {
+                material.roughnessMap = textures.roughness || null;
+                material.metalnessMap = textures.metallic || null;
+                material.aoMap = null;
+              }
             } else {
               material.emissiveMap = null;
               material.emissive.set(0x000000);
               material.emissiveIntensity = 0.0;
-              // For Orc: use texture_pbr (packed AO, Roughness, Metalness)
+              // For Orcs: use texture_pbr (packed AO, Roughness, Metalness)
               if (textures.pbr) {
                 material.roughnessMap = textures.pbr;
                 material.metalnessMap = textures.pbr;
@@ -634,7 +773,7 @@ export default function DemonCanvas({
             material.metalness = 1.0;
             material.color.set(0xffffff);
           } else if (mode === 'diffuse') {
-            material.map = isDemon ? (origDemonTextures.diffuse || textures.diffuse) : (textures.diffuse || null);
+            material.map = textures.diffuse || null;
             material.normalMap = null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
@@ -645,8 +784,8 @@ export default function DemonCanvas({
             material.metalness = 0.05;
             material.color.set(0xffffff);
           } else if (mode === 'shaded') {
-            material.map = textures.shaded || (isDemon ? origDemonTextures.diffuse : textures.diffuse) || null;
-            material.normalMap = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.map = textures.shaded || textures.diffuse || null;
+            material.normalMap = textures.normal || null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
             material.roughnessMap = null;
@@ -656,7 +795,7 @@ export default function DemonCanvas({
             material.metalness = 0.1;
             material.color.set(0xffffff);
           } else if (mode === 'normal') {
-            material.map = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.map = textures.normal || null;
             material.normalMap = null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
@@ -667,7 +806,7 @@ export default function DemonCanvas({
             material.metalness = 0.0;
             material.color.set(0xffffff);
           } else if (mode === 'roughness') {
-            material.map = (isDemon ? origDemonTextures.roughness : textures.roughness) || null;
+            material.map = textures.roughness || null;
             material.normalMap = null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
@@ -676,7 +815,7 @@ export default function DemonCanvas({
             material.aoMap = null;
             material.color.set(0xffffff);
           } else if (mode === 'metallic') {
-            material.map = (isDemon ? origDemonTextures.metallic : textures.metallic) || null;
+            material.map = textures.metallic || null;
             material.normalMap = null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
@@ -686,7 +825,7 @@ export default function DemonCanvas({
             material.color.set(0xffffff);
           } else if (mode === 'clay') {
             material.map = null;
-            material.normalMap = (isDemon ? origDemonTextures.normal : textures.normal) || null;
+            material.normalMap = textures.normal || null;
             material.emissiveMap = null;
             material.emissive.set(0x000000);
             material.roughnessMap = null;
@@ -704,6 +843,9 @@ export default function DemonCanvas({
         if (orcMesh && orcMaterial) {
           updateMaterial(orcMaterial, orcTextures, false);
         }
+        if (orc2Mesh && orc2Material) {
+          updateMaterial(orc2Material, orc2Textures, false);
+        }
 
         renderer.render(scene, camera);
       } catch (err) {
@@ -716,9 +858,6 @@ export default function DemonCanvas({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      if (mixerDemon) {
-        mixerDemon.stopAllAction();
-      }
       if (container && renderer.domElement) {
         container.removeChild(renderer.domElement);
       }
@@ -802,7 +941,7 @@ export default function DemonCanvas({
                   textShadow: '0 0 28px rgba(255, 77, 38, 0.45)'
                 }}
               >
-                Demon & Orc 3D Showcase
+                Demon & Orcs 3D Showcase
               </div>
 
               <button
@@ -877,7 +1016,7 @@ export default function DemonCanvas({
                   marginBottom: '8px'
                 }}
               >
-                Loading Demon & Orc 3D Models...
+                Loading Demon & Orcs 3D Models...
               </div>
               <div
                 style={{
