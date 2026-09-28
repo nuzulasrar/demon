@@ -35,8 +35,8 @@ export default function CharacterLoadingHUD({ characterProgress }) {
   const CHARACTERS = [
     {
       id: 'demon',
-      name: 'Demon Head',
-      subtitle: '54MB GLB • 4K PBR',
+      name: 'Demon (Half Body)',
+      subtitle: 'asset_demon_half • 4K PBR',
       icon: Flame,
       color: '#ff4d26',
       glow: 'rgba(255, 77, 38, 0.4)',

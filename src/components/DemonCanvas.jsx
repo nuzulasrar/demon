@@ -110,14 +110,12 @@ export default function DemonCanvas({
     controls.minDistance = 0.5;
     controls.maxDistance = 12;
     // Ground & Height Standards:
-    // Old Orc stands from y = -0.8 to y = 1.00208 (total height = 1.80208m)
-    // Demon Head bust has raw mesh bounds from y = -2.7502885 to y = 2.7497113 (raw height = 5.50000m)
+    // Old Orc & New Orc stand from y = -0.8 to y = 1.00208 (total height = 1.80208m, scale 0.95)
+    // Demon Half Body (asset_demon_half) raw mesh has base at y = 0.00 and height = 2.00m
     const groundY = -0.8;
-    const orcTotalHeight = 1.80208445;
-    const demonRawHeight = 5.5;
-    const demonBaseScale = orcTotalHeight / demonRawHeight; // ~0.3276517
-    // Align bottom of Demon Head (geomMinY = -2.7502885) to groundY (-0.80):
-    const demonBaseY = groundY - (-2.7502885 * demonBaseScale); // 0.101137
+    const demonBaseScale = 0.95;
+    const demonBaseY = groundY;
+    const demonBaseX = -1.85;
 
     const getFocusConfig = (currentAspect) => {
       const isPortrait = currentAspect < 1.0;
@@ -131,8 +129,8 @@ export default function DemonCanvas({
         all: allConfig,
         both: allConfig,
         demon: {
-          target: new THREE.Vector3(-1.75, 0.20, 0),
-          camera: new THREE.Vector3(-1.75, 0.35, isPortrait ? 3.0 : 2.5)
+          target: new THREE.Vector3(demonBaseX, 0.20, 0),
+          camera: new THREE.Vector3(demonBaseX, 0.35, isPortrait ? 3.0 : 2.5)
         },
         orc: {
           target: new THREE.Vector3(0.25, 0.20, 0),
@@ -202,7 +200,7 @@ export default function DemonCanvas({
     coolRimLight.layers.set(0);
     scene.add(coolRimLight);
 
-    // Dedicated Demon Lights (Layer 1 only: perfectly illuminates Demon Head, ZERO spill onto Orcs)
+    // Dedicated Demon Lights (Layer 1 only: perfectly illuminates Demon, ZERO spill onto Orcs)
     const demonKeyLight = new THREE.DirectionalLight(0xfff2e6, 2.2);
     demonKeyLight.position.set(-3.5, 4.0, 4.0);
     demonKeyLight.castShadow = true;
@@ -212,13 +210,13 @@ export default function DemonCanvas({
     demonKeyLight.layers.set(1);
     scene.add(demonKeyLight);
 
-    // Warm Demon Chin & Neck Bounce Light (Layer 1 only)
+    // Warm Demon Chin & Torso Bounce Light (Layer 1 only)
     const demonBounceLight = new THREE.DirectionalLight(0xff7744, 0.85);
-    demonBounceLight.position.set(-1.75, -1.0, 2.5);
+    demonBounceLight.position.set(demonBaseX, -0.8, 2.5);
     demonBounceLight.layers.set(1);
     scene.add(demonBounceLight);
 
-    // Demon Ambient Light lift (Layer 1 only: 0.65 + 0.20 = 0.85 total ambient for Demon Head)
+    // Demon Ambient Light lift (Layer 1 only: 0.65 + 0.20 = 0.85 total ambient for Demon)
     const demonAmbientLight = new THREE.AmbientLight(0xffffff, 0.20);
     demonAmbientLight.layers.set(1);
     scene.add(demonAmbientLight);
@@ -244,7 +242,8 @@ export default function DemonCanvas({
 
     // Textures collection
     const textureLoader = new THREE.TextureLoader();
-    const demonTextures = {};
+    const demonHeadTextures = {};
+    const demonTorsoTextures = {};
     const orcTextures = {};
     const orc2Textures = {};
 
@@ -267,7 +266,8 @@ export default function DemonCanvas({
     };
 
     let demonMesh = null;
-    let demonMaterial = null;
+    let demonHeadMaterial = null;
+    let demonTorsoMaterial = null;
     let orcMesh = null;
     let orcMaterial = null;
     let orc2Mesh = null;
@@ -289,109 +289,139 @@ export default function DemonCanvas({
     const objLoader = new OBJLoader();
     const gltfLoader = new GLTFLoader();
 
-    // 1. Load Demon Head (54MB GLB + textures)
+    // 1. Load Demon Half Body (asset_demon_half: continuous sculpt with Head + Torso 4K PBR)
     const loadDemon = async () => {
       try {
-        updateCharProgress('demon', { stage: 'Fetching textures...', percent: 5 });
-        let texLoaded = 0;
-        const totalTex = 5;
-        let meshRatio = 0;
+        updateCharProgress('demon', { stage: 'Connecting...', percent: 5 });
 
-        const reportProgress = (stage) => {
-          const texRatio = texLoaded / totalTex;
-          const p = Math.min(99, Math.round(texRatio * 35 + meshRatio * 65));
-          updateCharProgress('demon', { percent: p, stage: stage || `Loading ${p}%` });
-        };
+        const glbPrimaryUrl = assetPath('asset_demon_half/Demon_Head_Torso.glb');
+        const glbFallbackUrl = assetPath('asset_demon_half/Demon_Head_Torso_web.glb');
 
-        const onTex = (tex) => {
-          texLoaded++;
-          reportProgress(`Textures ${texLoaded}/${totalTex}`);
-          return tex;
-        };
-
-        const texPromises = Promise.all([
-          loadTex(assetPath('asset_demon_head/export/Demon_BaseColor.png'), true, false).then(onTex),
-          loadTex(assetPath('asset_demon_head/export/Demon_Normal.png'), false, false).then(onTex),
-          loadTex(assetPath('asset_demon_head/export/Demon_Roughness.png'), false, false).then(onTex),
-          loadTex(assetPath('asset_demon_head/export/Demon_Emission.png'), true, false).then(onTex),
-          loadTex(assetPath('asset_demon_head/export/Demon_Head_export_preview.png'), true, false).then(onTex)
-        ]);
-
-        const meshPromise = new Promise((resolve, reject) => {
-          gltfLoader.load(
-            assetPath('asset_demon_head/export/Demon_Head.glb'),
-            (gltf) => {
-              let mesh = null;
-              gltf.scene.traverse((child) => {
-                if (child.isMesh && !mesh) {
-                  mesh = child;
-                  child.castShadow = true;
-                  child.receiveShadow = true;
+        const loadGlbWithFallback = (primaryUrl, fallbackUrl) => {
+          return new Promise((resolve, reject) => {
+            const tryLoad = (url, isFallback = false) => {
+              gltfLoader.load(
+                url,
+                (gltf) => resolve(gltf),
+                (xhr) => {
+                  let percent = 0;
+                  const targetSize = isFallback ? 45716312 : 89743332;
+                  if (xhr.lengthComputable && xhr.total > 0) {
+                    percent = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+                  } else if (xhr.loaded > 0) {
+                    percent = Math.min(99, Math.round((xhr.loaded / targetSize) * 100));
+                  }
+                  updateCharProgress('demon', {
+                    percent: Math.max(5, percent),
+                    stage: `Downloading ${percent}%`
+                  });
+                },
+                (err) => {
+                  if (!isFallback && fallbackUrl) {
+                    console.warn(`Demon primary GLB failed (${url}), trying fallback: ${fallbackUrl}`, err);
+                    updateCharProgress('demon', { stage: 'Retrying web LOD...', percent: 10 });
+                    tryLoad(fallbackUrl, true);
+                  } else {
+                    reject(err);
+                  }
                 }
-              });
-              if (!mesh) {
-                reject(new Error('Mesh not found in Demon_Head.glb'));
-                return;
+              );
+            };
+            tryLoad(primaryUrl, false);
+          });
+        };
+
+        const gltf = await loadGlbWithFallback(glbPrimaryUrl, glbFallbackUrl);
+        updateCharProgress('demon', { stage: 'Configuring 3D model...', percent: 99 });
+
+        let headMat = null;
+        let torsoMat = null;
+
+        gltf.scene.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.layers.enable(1);
+
+            if (child.geometry) {
+              if (!child.geometry.attributes.uv2 && child.geometry.attributes.uv) {
+                child.geometry.setAttribute('uv2', child.geometry.attributes.uv);
               }
-              meshRatio = 1.0;
-              reportProgress('Decoding mesh...');
-              resolve(mesh);
-            },
-            (xhr) => {
-              if (xhr.lengthComputable && xhr.total > 0) {
-                meshRatio = Math.min(0.99, xhr.loaded / xhr.total);
-              } else if (xhr.loaded > 0) {
-                meshRatio = Math.min(0.99, xhr.loaded / 56000000);
+              if (!child.geometry.attributes.tangent) {
+                try {
+                  child.geometry.computeTangents();
+                } catch (e) {
+                  // ignore
+                }
               }
-              reportProgress(`Mesh ${Math.round(meshRatio * 100)}%`);
-            },
-            (err) => reject(err)
-          );
-        });
+            }
 
-        const [textures, mesh] = await Promise.all([texPromises, meshPromise]);
-        const [dDiffuse, dNormal, dRoughness, dEmission, dShaded] = textures;
+            const checkMat = (mat) => {
+              if (!mat) return;
+              const name = (mat.name || '').toLowerCase();
+              if (name.includes('head') || (!headMat && !name.includes('torso'))) {
+                headMat = mat;
+              } else {
+                torsoMat = mat;
+              }
+            };
 
-        demonTextures.diffuse = dDiffuse;
-        demonTextures.normal = dNormal;
-        demonTextures.roughness = dRoughness;
-        demonTextures.emissive = dEmission;
-        demonTextures.metallic = null;
-        demonTextures.pbr = null;
-        demonTextures.shaded = dShaded;
-
-        if (mesh.geometry) {
-          if (!mesh.geometry.attributes.uv2 && mesh.geometry.attributes.uv) {
-            mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv);
-          }
-          if (!mesh.geometry.attributes.tangent) {
-            try {
-              mesh.geometry.computeTangents();
-            } catch (e) {
-              console.warn('Demon tangent computation skipped:', e);
+            if (Array.isArray(child.material)) {
+              child.material.forEach(checkMat);
+            } else if (child.material) {
+              checkMat(child.material);
             }
           }
+        });
+
+        if (headMat) {
+          demonHeadMaterial = headMat;
+          demonHeadTextures.diffuse = headMat.map;
+          demonHeadTextures.normal = headMat.normalMap;
+          demonHeadTextures.roughness = headMat.roughnessMap;
+          demonHeadTextures.metallic = headMat.metalnessMap;
+          demonHeadTextures.emissive = headMat.emissiveMap;
+          demonHeadTextures.shaded = headMat.map;
+
+          if (headMat.map) headMat.map.colorSpace = THREE.SRGBColorSpace;
+          if (headMat.emissiveMap) headMat.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+          headMat.emissive = new THREE.Color(0xff4411);
+          headMat.emissiveIntensity = 4.5;
+          headMat.roughness = 0.72;
+          headMat.metalness = 0.0;
+          headMat.color.setRGB(1.22, 1.18, 1.18);
         }
 
-        demonMaterial = new THREE.MeshStandardMaterial({
-          map: demonTextures.diffuse || null,
-          normalMap: demonTextures.normal || null,
-          normalScale: new THREE.Vector2(1.0, 1.0),
-          roughnessMap: demonTextures.roughness || null,
-          roughness: 0.72,
-          metalness: 0.0,
-          emissiveMap: demonTextures.emissive || null,
-          emissive: new THREE.Color(0xff4411),
-          emissiveIntensity: 5.0,
-          color: new THREE.Color(1.22, 1.18, 1.18)
-        });
-        mesh.material = demonMaterial;
-        mesh.scale.set(demonBaseScale, demonBaseScale, demonBaseScale);
-        mesh.position.set(-1.75, demonBaseY, 0);
-        mesh.rotation.y = 0.16;
-        mesh.layers.enable(1);
+        if (torsoMat) {
+          demonTorsoMaterial = torsoMat;
+          demonTorsoTextures.diffuse = torsoMat.map;
+          demonTorsoTextures.normal = torsoMat.normalMap;
+          demonTorsoTextures.roughness = torsoMat.roughnessMap;
+          demonTorsoTextures.metallic = torsoMat.metalnessMap;
+          demonTorsoTextures.emissive = torsoMat.emissiveMap;
+          demonTorsoTextures.shaded = torsoMat.map;
 
-        demonMesh = mesh;
+          if (torsoMat.map) torsoMat.map.colorSpace = THREE.SRGBColorSpace;
+          if (torsoMat.emissiveMap) torsoMat.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+          torsoMat.emissive = new THREE.Color(0xff4411);
+          torsoMat.emissiveIntensity = 3.0;
+          torsoMat.roughness = 0.72;
+          torsoMat.metalness = 0.0;
+          torsoMat.color.setRGB(1.22, 1.18, 1.18);
+        }
+
+        // Asynchronously load verified render preview for shaded mode if available
+        loadTex(assetPath('asset_demon_half/eyes_verified_render.png'), true, false).then((tex) => {
+          if (tex) {
+            demonHeadTextures.shaded = tex;
+          }
+        });
+
+        demonMesh = gltf.scene;
+        demonMesh.scale.set(demonBaseScale, demonBaseScale, demonBaseScale);
+        demonMesh.position.set(demonBaseX, demonBaseY, 0);
+        demonMesh.rotation.y = 0.16;
+
         modelsGroup.add(demonMesh);
 
         updateCharProgress('demon', { percent: 100, stage: 'Ready', loaded: true });
@@ -706,7 +736,7 @@ export default function DemonCanvas({
         const t = ((now - startTime) * 0.001) * speed;
 
         if (isAnim) {
-          // --- 1. Demon Head (asset_demon_head) Idle Animation ---
+          // --- 1. Demon Half Body (asset_demon_half: Head & Torso) Idle Animation ---
           if (demonMesh) {
             // Imposing breathing rhythm and subtle intimidation stance
             const dBreath = Math.sin(t * 1.5);
@@ -718,17 +748,20 @@ export default function DemonCanvas({
             const dScaleY = demonBaseScale * (1 + 0.008 * dBreath);
             demonMesh.scale.set(dScaleXZ, dScaleY, dScaleXZ);
 
-            // Bottom stays grounded at groundY during respiration
-            demonMesh.position.y = (groundY - (-2.7502885 * dScaleY)) + 0.003 * (dBreath * 0.5 + 0.5);
+            // Bottom stays grounded at groundY during respiration (since raw minY = 0)
+            demonMesh.position.y = demonBaseY + 0.004 * (dBreath * 0.5 + 0.5);
+            demonMesh.position.x = demonBaseX;
             demonMesh.rotation.y = 0.16 + 0.015 * dSway;
             demonMesh.rotation.z = 0.008 * dSway;
             demonMesh.rotation.x = 0.006 * dBreathCos;
 
-            // Magma pulse in sync with respiration (eyes glowing embers)
-            if (demonMaterial && stateRef.current.renderMode === 'pbr') {
+            // Magma pulse in sync with respiration (eyes and torso fissures glowing)
+            if (stateRef.current.renderMode === 'pbr') {
               const eBase = stateRef.current.emissiveIntensity;
-              const pulse = 3.5 + 2.0 * (0.5 + 0.5 * Math.sin(t * 1.5));
-              demonMaterial.emissiveIntensity = eBase * pulse;
+              const pulseHead = 3.5 + 2.0 * (0.5 + 0.5 * Math.sin(t * 1.5));
+              const pulseTorso = 2.2 + 1.6 * (0.5 + 0.5 * Math.sin(t * 1.5));
+              if (demonHeadMaterial) demonHeadMaterial.emissiveIntensity = eBase * pulseHead;
+              if (demonTorsoMaterial) demonTorsoMaterial.emissiveIntensity = eBase * pulseTorso;
             }
           }
 
@@ -774,10 +807,12 @@ export default function DemonCanvas({
           // Paused pose
           if (demonMesh) {
             demonMesh.scale.set(demonBaseScale, demonBaseScale, demonBaseScale);
-            demonMesh.position.set(-1.75, demonBaseY, 0);
+            demonMesh.position.set(demonBaseX, demonBaseY, 0);
             demonMesh.rotation.set(0, 0.16, 0);
-            if (demonMaterial && stateRef.current.renderMode === 'pbr') {
-              demonMaterial.emissiveIntensity = stateRef.current.emissiveIntensity * 4.5;
+            if (stateRef.current.renderMode === 'pbr') {
+              const eBase = stateRef.current.emissiveIntensity;
+              if (demonHeadMaterial) demonHeadMaterial.emissiveIntensity = eBase * 4.5;
+              if (demonTorsoMaterial) demonTorsoMaterial.emissiveIntensity = eBase * 3.0;
             }
           }
           if (orcMesh) {
@@ -808,12 +843,19 @@ export default function DemonCanvas({
         demonBounceLight.intensity = 0.85 * lightMult;
         demonAmbientLight.intensity = 0.20 * lightMult;
 
-        // Handle flipY dynamically: Old Orc is OBJ (flipY=true by default), Demon Head & Orc 2 are GLTF (flipY=false by default)
+        // Handle flipY dynamically: Old Orc is OBJ (flipY=true by default), Demon & Orc 2 are GLTF (flipY=false by default)
         const isFlipped = stateRef.current.flipTextureY;
         const objTargetFlip = isFlipped ? false : true;
         const gltfTargetFlip = isFlipped ? true : false;
 
-        Object.values(demonTextures).forEach((tex) => {
+        Object.values(demonHeadTextures).forEach((tex) => {
+          if (tex && tex.flipY !== gltfTargetFlip) {
+            tex.flipY = gltfTargetFlip;
+            tex.needsUpdate = true;
+          }
+        });
+
+        Object.values(demonTorsoTextures).forEach((tex) => {
           if (tex && tex.flipY !== gltfTargetFlip) {
             tex.flipY = gltfTargetFlip;
             tex.needsUpdate = true;
@@ -843,7 +885,8 @@ export default function DemonCanvas({
         if (modeOrWireChanged) {
           prevRenderMode = mode;
           prevWireframe = wire;
-          if (demonMaterial) demonMaterial.needsUpdate = true;
+          if (demonHeadMaterial) demonHeadMaterial.needsUpdate = true;
+          if (demonTorsoMaterial) demonTorsoMaterial.needsUpdate = true;
           if (orcMaterial) orcMaterial.needsUpdate = true;
           if (orc2Material) orc2Material.needsUpdate = true;
         }
@@ -951,8 +994,9 @@ export default function DemonCanvas({
           }
         };
 
-        if (demonMesh && demonMaterial) {
-          updateMaterial(demonMaterial, demonTextures, true);
+        if (demonMesh) {
+          if (demonHeadMaterial) updateMaterial(demonHeadMaterial, demonHeadTextures, true);
+          if (demonTorsoMaterial) updateMaterial(demonTorsoMaterial, demonTorsoTextures, true);
         }
         if (orcMesh && orcMaterial) {
           updateMaterial(orcMaterial, orcTextures, false);

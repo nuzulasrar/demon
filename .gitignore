@@ -27,3 +27,9 @@ dist-ssr
 asset_demon/base.obj
 asset_demon/demon.glb
 asset_orc_2/base.obj
+asset_demon_half/*.obj
+asset_demon_half/*.mtl
+asset_demon_half/*.fbx
+asset_demon_half/*.usdc
+asset_demon_half/*_full.glb
+
